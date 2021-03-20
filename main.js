@@ -90,7 +90,7 @@ client.once('ready', () => {
             console.log();
             if(args.length == 3 && args[2].value == 'public') {
                 console.log("GOOO");
-                user_id += sender.user.username + '@' + sender.user.discriminator; 
+                user_id += sender.user.username + '#' + sender.user.discriminator; 
                 pfp = 'https://cdn.discordapp.com/avatars/'+ sender.user.id +'/'+ sender.user.avatar +'.png';
                 console.log(pfp);
             } else {
@@ -113,27 +113,26 @@ client.once('ready', () => {
             .setAuthor(user_id, pfp)
             .setDescription(args[1].value)
             .setTimestamp()
-            .setFooter('To respond to the user, please hit on the envelope below. To preserve anonymity, you will get a specific respone ID and I will message the user on your behalf.');
+            .setFooter('To respond to the user, please use the mail code below. To preserve anonymity, you will get a specific respone ID and I will message the user on your behalf.');
 
-            // client.api.interactions(interaction.id, interaction.token).callback.post({
-            //     data: {
-            //         type: 4,
-            //         data: {
-            //             content: "hello world!",
-            //             embeds: [resp]
-            //         }
-            //     }
-            // })
+            client.api.interactions(interaction.id, interaction.token).callback.post({
+                data: {
+                    type: 3,
+                    data: {
+                        content: "Your message has been sent successfully.",
+                        flags: 64
+                    }        
+                }
+            })
 
-            // new Discord.WebhookClient(client.user.id, interaction.token).send({embed: embed_res}).then(embedMessage => {
-            //     embedMessage.react(":incoming_envelope:");
+            // new Discord.WebhookClient(client.user.id, interaction.token).send({embed: resp}).then(embedMessage => {
+            //     getMethods(embedMessage);
             // });
 
-            const botResponse = new Discord.WebhookClient(client.user.id, interaction.token);
-            
-            botResponse.send({embeds: [resp]}).then((msg)=>{console.log(msg);console.log(msg.constructor.name)}).catch(console.error);
-
-            
+            // const botResponse = new Discord.WebhookClient(client.user.id, interaction.token);
+            // {embeds: [resp]}
+            client.channels.cache.get('822859340812910592').send(resp).then(msg=>(msg.react('✉️')));
+            // botResponse.send({content: '`Mail Code: ' + msgFull.id + '`'})
         }
 
         if (command === 'response') {
@@ -150,6 +149,21 @@ client.once('ready', () => {
     });
     
 });
+
+function getMethods(obj) {
+    var result = [];
+    for (var id in obj) {
+      try {
+        if (typeof(obj[id]) == "function") {
+          result.push(id + ": " + obj[id].toString());
+        }
+      } catch (err) {
+        result.push(id + ": inaccessible");
+      }
+    }
+    return result;
+  }
+  
 // {
 //   id: '822207764872298516',
 //   type: 0,
