@@ -22,8 +22,8 @@ function insertMessage(interaction) {
 
     const data = interaction.data;
 
-    if(data.options.length == 3) {
-        mode = data.options[2].value;
+    if(data.options.length == 2) {
+        mode = data.options[1].value;
     } else {
         mode = 'anon';
     }
@@ -32,7 +32,7 @@ function insertMessage(interaction) {
     const user = sender.user.id;
     var insert_vals = {
         id: id,
-        content: data.options[1].value,
+        content: data.options[0].value,
         user: user,
         mode: mode
     }

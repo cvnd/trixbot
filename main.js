@@ -15,28 +15,6 @@ client.once('ready', () => {
     commands.forEach(element => {
         registerCommand(element);
     });
-    // var omail_json = ;
-    
-    // var response_json = {
-    //     "name": "re",
-    //     "description": "Respond to an anonymous message",
-    //     "options": [
-    //         {
-    //             "name" : "id",
-    //             "description" : "ID of message. Hit the mail icon on the desired message to get it.",
-    //             "type" : 3,
-    //             "required" : true
-    //         },
-    //         {
-    //             "name": "message",
-    //             "description": "Your message",
-    //             "type": 3,
-    //             "required": true
-    //         }
-    //     ]
-    // };
-    //registerCommand(omail_json);
-    //registerCommand(response_json);
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
         console.log(interaction);
@@ -65,11 +43,6 @@ client.once('ready', () => {
             });
         
         }
-        // if (command === 're') {
-        //     const id = args[0].value;
-        //     const msg = args[1].value;
-        //     DB.respondInteraction(id);
-        // }
     });
 
     client.on('messageReactionAdd', async (reaction, user) => {
@@ -185,9 +158,7 @@ function sendMail(args, sender, id) {
     var pfp ='';
     //console.log(args);
     // If the mode value is set and is set to public
-    if(args.length == 3 && args[2].value == 'public') {
-        user_id += sender.user.username + '#' + sender.user.discriminator; 
-                user_id += sender.user.username + '#' + sender.user.discriminator; 
+    if(args.length == 2 && args[1].value == 'public') {
         user_id += sender.user.username + '#' + sender.user.discriminator; 
         pfp = 'https://cdn.discordapp.com/avatars/'+ sender.user.id +'/'+ sender.user.avatar +'.png';
         console.log(pfp);
@@ -197,7 +168,6 @@ function sendMail(args, sender, id) {
         pfp = 'https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png';
     }
 
-    var tag ='';
     // if(args[0].value == 'report') {
     //     tag = ':warning: Report';
     // } else {
@@ -209,7 +179,7 @@ function sendMail(args, sender, id) {
         .setColor('#0099ff')
         .setTitle("Submission #" + id.substring(id.length - 6, id.length))
         .setAuthor(user_id, pfp)
-        .setDescription( args[1].value + '\n')
+        .setDescription( args[0].value + '\n')
         // .addFields(
         //     { name: tag, value: args[1].value + '\n' },
         // )

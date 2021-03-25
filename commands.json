@@ -2,22 +2,6 @@
     "name": "mail",
     "description": "Send a suggestion/report to the officers",
     "options": [
-        // {
-        //     "name" : "type",
-        //     "description" : "Mail type",
-        //     "type" : 3,
-        //     "required" : true,
-        //     "choices" : [
-        //         {
-        //             "name": "suggestion",
-        //             "value" : "suggest"
-        //         },
-        //         {
-        //             "name" : "report",
-        //             "value" : "report"
-        //         }
-        //     ]
-        // },
         {
             "name": "message",
             "description": "Your message",
