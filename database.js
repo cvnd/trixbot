@@ -15,7 +15,7 @@ connection.connect(function(err) {
     console.log('Connected to the MySQL server.');
 });
 
-function insertMessage(interaction) {
+function insertMessages(interaction, msg_id) {
     const sender = interaction.member
     const id = interaction.id
     var mode ='';
@@ -34,7 +34,8 @@ function insertMessage(interaction) {
         id: id,
         content: data.options[0].value,
         user: user,
-        mode: mode
+        mode: mode,
+        message_id: msg_id
     }
     var query = connection.query('INSERT INTO messages SET ?', insert_vals, function (error, results, fields) {
         if (error) throw error;
@@ -55,6 +56,17 @@ function postedMessage(interaction_id, msg_id) {
     });
 }
 
+function insertReplies(interaction, msg, author) {
+    var insert_vals = {
+        interaction: interaction,
+        message: msg,
+        author_id: author
+    }
+
+    var query = connection.query('INSERT INTO replies SET ?', insert_vals, function(error, results, fields) {
+        if(error) throw error;
+    });
+}
 async function getAuthor(int_id) {
     // var query = connection.query('SELECT user FROM messages WHERE id = "' + int_id + '"', function(error, result, fields) {
     //     if(error) throw error;
@@ -97,14 +109,14 @@ function queryDB(query) {
 }
 
 async function getInteraction(msg_id) {
-    const query = 'SELECT interaction FROM posted WHERE message = "' + msg_id + '"';
+    var query = 'SELECT interaction FROM replies WHERE message = "' + msg_id + '"';
     let result = await queryDB(query);
     //console.log(result[0].interaction);
     return result[0].interaction;
 }
 
 module.exports = connection;
-module.exports.insertMessage = insertMessage;
-module.exports.postedMessage = postedMessage;
+module.exports.insertMessages = insertMessages;
+module.exports.insertReplies = insertReplies;
 module.exports.getInteraction = getInteraction;
 module.exports.getAuthor = getAuthor;
