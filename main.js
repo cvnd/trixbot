@@ -1,9 +1,12 @@
 // require the discord.js module
-const Discord = require('./venv/Scripts/node_modules/discord.js');
+const Discord = require('./node_modules/discord.js');
 const auth = require('./auth.json');
-// create a new Discord client
-const client = new Discord.Client();
+const DB = require('./database.js');
 
+var config = require('./config.json');
+const { WebhookClient } = require('discord.js');
+// create a new Discord client
+const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
 // when the client is ready, run this code
 // this event will only trigger one time after logging in
 client.once('ready', () => {
@@ -55,7 +58,7 @@ client.once('ready', () => {
     }
     
     var response_json = {
-        "name": "response",
+        "name": "re",
         "description": "Respond to an anonymous message",
         "options": [
             {
@@ -82,123 +85,194 @@ client.once('ready', () => {
         const args = interaction.data.options;
         const sender = interaction.member;
         if (command === 'mail'){ 
-            // here you could do anything. in this sample
-            // i reply with an api interaction
-            var user_id = '';
-            var pfp ='';
-            // If the mode value is set and is set to public
-            console.log();
-            if(args.length == 3 && args[2].value == 'public') {
-                console.log("GOOO");
-                user_id += sender.user.username + '#' + sender.user.discriminator; 
-                pfp = 'https://cdn.discordapp.com/avatars/'+ sender.user.id +'/'+ sender.user.avatar +'.png';
-                console.log(pfp);
-            } else {
-                var len = sender.user.id.length;
-                user_id += 'User#' + sender.user.id.substr(len - 4, len);
-                pfp = 'https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png';
-            }
-
-            // full_message += interaction.data.options.message;
-            // console.log(full_message);
-            var title ='';
-            if(args[0].value == 'report') {
-                title = ':warning: Report';
-            } else {
-                title = ':speech_balloon: Suggestion';
-            }
-            const resp = new Discord.MessageEmbed()
-            .setColor('#0099ff')
-            .setTitle(title)
-            .setAuthor(user_id, pfp)
-            .setDescription(args[1].value)
-            .setTimestamp()
-            .setFooter('To respond to the user, please use the mail code below. To preserve anonymity, you will get a specific respone ID and I will message the user on your behalf.');
-
+            const mail = sendMail(args, sender);
+            DB.insertMessage(interaction);
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
                     type: 3,
                     data: {
                         content: "Your message has been sent successfully.",
                         flags: 64
-                    }        
-                }
+                        }        
+                }        
             })
-
-            // new Discord.WebhookClient(client.user.id, interaction.token).send({embed: resp}).then(embedMessage => {
-            //     getMethods(embedMessage);
-            // });
-
-            // const botResponse = new Discord.WebhookClient(client.user.id, interaction.token);
-            // {embeds: [resp]}
-            client.channels.cache.get('822859340812910592').send(resp).then(msg=>(msg.react('✉️')));
-            // botResponse.send({content: '`Mail Code: ' + msgFull.id + '`'})
+        
+            console.log(client.users.fetch(sender.user.id));
+            client.users.fetch(sender.user.id).then(user=>user.send('The following message has been sent to the officers: ' + mail));
+            var posted_msg = '';
+            client.channels.cache.get('822859340812910592').send(mail).then(msg=>{
+                msg.react('✉️');
+                DB.postedMessage(interaction.id, msg.id);
+            });
+        
         }
-
-        if (command === 'response') {
-            var id = args[0].value;
-            var msg = args[1].value;
-
+        if (command === 're') {
+            const id = args[0].value;
+            const msg = args[1].value;
+            DB.getInteraction(id);
         }
     });
 
-    client.on('message', function(message){
-        if(message.content == 'react') {
-            message.react("😄");
+    client.on('messageReactionAdd', async (reaction, user) => {
+
+        //console.log(reaction);
+        // When we receive a reaction we check if the reaction is partial or not
+        if (reaction.partial) {
+            // If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
+            try {
+                await reaction.fetch();
+            } catch (error) {
+                console.error('Something went wrong when fetching the message: ', error);
+                // Return as `reaction.message.author` may be undefined/null
+                return;
+            }
         }
+        // Now the message has been cached and is fully available
+        //console.log(`${reaction.message.author}'s message "${reaction.message.content}" gained a reaction!`);
+        // The reaction is now also fully available and the properties will be reflected accurately:
+        //console.log(`${reaction.count} user(s) have given the same reaction to this message!`);
+        const msg_id = reaction.message.id;
+        const interaction = DB.getInteraction(msg_id);
+        console.log(interaction);
+        if(user.bot === false ) {
+            const msg = '```Respone Code: '+ interaction +'```';
+            console.log(msg);
+            client.channels.cache.get('822859340812910592').send(msg);
+        }
+    });
+    
+    client.on('message', function(message){
+        const sender = message.author;
+        //console.log(sender);
+        const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
+        const userhandle = sender.username + '#' +  sender.discriminator;
+
+    
+        if(message.content.substring(0, 5) == '/poll') {
+            var params = message.content.match(/"([^"]*)"/g);
+            //console.log(params);
+            const parsed_params = parseOptions(params);
+            console.log(parsed_params);
+            const resp = new Discord.MessageEmbed()
+            .setColor('#ff0059')
+            .setTitle('')
+            .setAuthor(userhandle, pfp)
+            .addFields({name: parsed_params.title, value:parsed_params.body})
+            .setTimestamp()
+            .setFooter(parsed_params.footer);
+        
+            
+            client.channels.cache.get('822859340812910592').send(resp).then(
+                msg=>pollReact(parsed_params.emojis, msg)
+            );
+        
+
+            message.delete();
+        }
+
+        // if(message.author.bot == true) {
+        //     message.react("😄");
+        // }
     });
     
 });
 
-function getMethods(obj) {
-    var result = [];
-    for (var id in obj) {
-      try {
-        if (typeof(obj[id]) == "function") {
-          result.push(id + ": " + obj[id].toString());
-        }
-      } catch (err) {
-        result.push(id + ": inaccessible");
-      }
+function sendMail(args, sender) {
+    var user_id = '';
+    var pfp ='';
+    //console.log(args);
+    // If the mode value is set and is set to public
+    if(args.length == 3 && args[2].value == 'public') {
+        user_id += sender.user.username + '#' + sender.user.discriminator; 
+                user_id += sender.user.username + '#' + sender.user.discriminator; 
+        user_id += sender.user.username + '#' + sender.user.discriminator; 
+        pfp = 'https://cdn.discordapp.com/avatars/'+ sender.user.id +'/'+ sender.user.avatar +'.png';
+        console.log(pfp);
+    } else {
+        var len = sender.user.id.length;
+        user_id += 'User#' + sender.user.id.substr(len - 4, len);
+        pfp = 'https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png';
     }
-    return result;
-  }
-  
-// {
-//   id: '822207764872298516',
-//   type: 0,
-//   content: '',
-//   channel_id: '822130272341590081',
-//   author: {
-//     id: '789932059224702976',
-//     username: 'Trix',
-//     avatar: null,
-//     discriminator: '9600',
-//     public_flags: 0,
-//     bot: true
-//   },
-//   attachments: [],
-//   embeds: [
-//     {
-//       type: 'rich',
-//       title: ':speech_balloon: Suggestion',
-//       description: 'asdasdasdsa',
-//       color: 39423,
-//       timestamp: '2021-03-18T20:40:06.880000+00:00',
-//       author: [Object],
-//       footer: [Object]
-//     }
-//   ],
-//   mentions: [],
-//   mention_roles: [],
-//   pinned: false,
-//   mention_everyone: false,
-//   tts: false,
-//   timestamp: '2021-03-18T20:40:07.027000+00:00',
-//   edited_timestamp: null,
-//   flags: 0,
-//   webhook_id: '789932059224702976'
-// }
+
+    var title ='';
+    if(args[0].value == 'report') {
+        title = ':warning: Report';
+    } else {
+        title = ':speech_balloon: Suggestion';
+    }
+    const resp = new Discord.MessageEmbed()
+        .setColor('#0099ff')
+        .setTitle(title)
+        .setAuthor(user_id, pfp)
+        .setDescription(args[1].value)
+        .setTimestamp()
+        .setFooter('To respond to the user, please use the mail code below. To preserve anonymity, you will get a specific respone ID and I will message the user on your behalf.');
+
+    return resp;
+}
+
+
+function parseOptions(args) {
+    var returns = {};
+    var body = '';
+    var emojis = [];
+    //console.log(args);
+    returns.title = '';
+    returns.anon = false;
+    returns.footer = '';
+    const alphabet = ['🇦','🇧','🇨','🇩','🇪','🇫','🇬','🇭','🇮','🇯','🇰','🇱','🇲','🇳','🇴','🇵','🇶','🇷','🇸','🇹','🇺','🇻','🇼','🇽','🇾','🇿'];
+    // const alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u','v','w','x','y','z']
+    
+    // Variable to start counting options
+    var start = 0;
+    returns.expiry = '';
+    for(let i = 0; i < args.length;i++) {
+        const val = args[i].substring(1, args[i].length-1);
+        console.log(val);
+        if(val == '!anon') {
+            returns.anon = true;
+        } else if(val.substring(0, 7) == '!expiry') {
+            returns.expiry = val.substring(8, val.length);
+            start++;
+        } else {
+            // If title is blank, set and continue looping.
+            if(returns.title == '') {
+                returns.title = val;
+                start = i + 1;
+            } else {
+                body += ' \n ';
+                var emoji = alphabet[i - start];
+                emojis.push(emoji);
+
+                var str = emoji + ' ' + val;
+                body += str;
+            }
+            
+        }
+    }
+
+    if(returns.anon == true) {
+        returns.footer = 'This poll is in anonymous mode. Vote counts will be revealed once the poll has closed';
+    }
+
+    if(returns.expiry != '') {
+        if(returns.footer == '') {
+            returns.footer = 'This poll closes'
+        }
+        returns.footer += ' on ' + returns.expiry;
+        returns.footer += '.';
+    }
+    returns.body = body;
+    returns.emojis = emojis;
+    return returns;
+}
+
+function pollReact(emojis, msg) {
+    const alphabet = ['🇦','🇧','🇨','🇩','🇪','🇫','🇬','🇭','🇮','🇯','🇰','🇱','🇲','🇳','🇴','🇵','🇶','🇷','🇸','🇹','🇺','🇻','🇼','🇽','🇾','🇿']
+    for(let i = 0; i < emojis.length; i++) {
+        msg.react(alphabet[i]);
+    }
+}
 
 
 function registerCommand(json) {
