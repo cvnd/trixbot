@@ -2,7 +2,7 @@
 const Discord = require('./node_modules/discord.js');
 const auth = require('./auth.json');
 const DB = require('./database.js');
-
+const commands = require('./commands.json');
 var config = require('./config.json');
 const { WebhookClient } = require('discord.js');
 // create a new Discord client
@@ -85,7 +85,7 @@ client.once('ready', () => {
         const args = interaction.data.options;
         const sender = interaction.member;
         if (command === 'mail'){ 
-            const mail = sendMail(args, sender);
+            const mail = sendMail(args, sender, interaction.id);
             DB.insertMessage(interaction);
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
@@ -98,19 +98,18 @@ client.once('ready', () => {
             })
         
             console.log(client.users.fetch(sender.user.id));
-            client.users.fetch(sender.user.id).then(user=>user.send('The following message has been sent to the officers: ' + mail));
-            var posted_msg = '';
+            client.users.fetch(sender.user.id).then(user=>user.send('The following message has been sent to the officers: ', {embed: mail}));
             client.channels.cache.get('822859340812910592').send(mail).then(msg=>{
-                msg.react('✉️');
+                //msg.react('✉️');
                 DB.postedMessage(interaction.id, msg.id);
             });
         
         }
-        if (command === 're') {
-            const id = args[0].value;
-            const msg = args[1].value;
-            DB.getInteraction(id);
-        }
+        // if (command === 're') {
+        //     const id = args[0].value;
+        //     const msg = args[1].value;
+        //     DB.respondInteraction(id);
+        // }
     });
 
     client.on('messageReactionAdd', async (reaction, user) => {
@@ -132,21 +131,44 @@ client.once('ready', () => {
         // The reaction is now also fully available and the properties will be reflected accurately:
         //console.log(`${reaction.count} user(s) have given the same reaction to this message!`);
         const msg_id = reaction.message.id;
-        const interaction = DB.getInteraction(msg_id);
-        console.log(interaction);
+        //const interaction = DB.getInteraction(msg_id, client.channels.cache.get('822859340812910592'));
+        //console.log(interaction);
         if(user.bot === false ) {
-            const msg = '```Respone Code: '+ interaction +'```';
-            console.log(msg);
-            client.channels.cache.get('822859340812910592').send(msg);
+            // const msg = '```Mail Code: '+ interaction +'```';
+            // console.log(msg);
+            DB.getInteraction(msg_id, client.channels.cache.get('822859340812910592'));
+            // client.channels.cache.get('822859340812910592').send(msg);
         }
     });
     
     client.on('message', function(message){
+        console.log("MESSAGE");
+        console.log(message);
+        console.log("EO MESSAGE");
         const sender = message.author;
         //console.log(sender);
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
         const userhandle = sender.username + '#' +  sender.discriminator;
 
+        if(message.reference !== null) {
+            message.channel.messages.fetch(message.reference.messageID)
+            .then(msg => {
+                if(msg.author.id === '789932059224702976') {
+
+                    DB.getInteraction(message.reference.messageID)
+                    .then(id=>{
+                        DB.getAuthor(id)
+                        .then(author=>{
+                            client.users.fetch(author).then(user=>user.send(message.content));
+
+                        });
+
+                    });
+                }
+            })
+            .catch(console.error);
+          
+        }
     
         if(message.content.substring(0, 5) == '/poll') {
             var params = message.content.match(/"([^"]*)"/g);
@@ -177,7 +199,7 @@ client.once('ready', () => {
     
 });
 
-function sendMail(args, sender) {
+function sendMail(args, sender, id) {
     var user_id = '';
     var pfp ='';
     //console.log(args);
@@ -200,13 +222,18 @@ function sendMail(args, sender) {
     } else {
         title = ':speech_balloon: Suggestion';
     }
+
+    //var body = args[1].value + "\n ✉️:`"+id+"`";
     const resp = new Discord.MessageEmbed()
         .setColor('#0099ff')
         .setTitle(title)
         .setAuthor(user_id, pfp)
         .setDescription(args[1].value)
+        .addFields(
+            { name: '\u200B', value: '\u200B' },
+        )
         .setTimestamp()
-        .setFooter('To respond to the user, please use the mail code below. To preserve anonymity, you will get a specific respone ID and I will message the user on your behalf.');
+        .setFooter('To respond to the user, please reply to this message directly. It will be forwarded to the user on your behalf.');
 
     return resp;
 }

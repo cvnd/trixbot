@@ -1,6 +1,5 @@
 let mysql = require('mysql');
 const auth = require('./auth.json');
-
 var connection = mysql.createConnection({
     host: auth.host,
     user: auth.user,
@@ -28,12 +27,13 @@ function insertMessage(interaction) {
     } else {
         mode = 'anon';
     }
-    const user_id = sender.user.username + '#' + sender.user.discriminator;
+    // const user_id = sender.user.username + '#' + sender.user.discriminator;
 
+    const user = sender.user.id;
     var insert_vals = {
         id: id,
         content: data.options[1].value,
-        user: user_id,
+        user: user,
         mode: mode
     }
     var query = connection.query('INSERT INTO messages SET ?', insert_vals, function (error, results, fields) {
@@ -55,21 +55,56 @@ function postedMessage(interaction_id, msg_id) {
     });
 }
 
-function getInteraction(msg_id) {
-    var interaction = '';
-    var query = connection.query('SELECT interaction FROM posted WHERE message = "' + msg_id + '"', function(error, result, fields) {
-        if(error) throw error;
-        Object.keys(result).forEach(function(key) {
-            var row = result[key];
-            //console.log(row.interaction)
-            interaction = row.interaction;
-          });
+async function getAuthor(int_id) {
+    // var query = connection.query('SELECT user FROM messages WHERE id = "' + int_id + '"', function(error, result, fields) {
+    //     if(error) throw error;
+    //     Object.keys(result).forEach(function(key) {
+    //         var userid = result[key].interaction;
+    //         client.users.fetch(userid).then(user=>user.send('message'));
+    //         // const msg = '```Mail Code: '+ code +'```';
+    //         // feed.send(msg);
+    //         // interaction.push(row.interaction);
+    //         //console.log(row.interaction)
+    //         //interaction = row.interaction;
+    //       });
+
+    //});
+    const query = 'SELECT user FROM messages WHERE id = "' + int_id + '"';
+    let result = await queryDB(query);
+    //console.log(result[0].interaction);
+    return result[0].user;
+
+}
+function queryDB(query) {
+    return new Promise(data => {
+        connection.query(query, function (error, result) { // change db->connection for your code
+            if (error) {
+                //console.log(error);
+                throw error;
+            }
+            try {
+                //console.log(result);
+                data(result);
+
+            } catch (error) {
+                data({});
+                throw error;
+            }
+
+        });
     });
 
-    return interaction;
+}
+
+async function getInteraction(msg_id) {
+    const query = 'SELECT interaction FROM posted WHERE message = "' + msg_id + '"';
+    let result = await queryDB(query);
+    //console.log(result[0].interaction);
+    return result[0].interaction;
 }
 
 module.exports = connection;
 module.exports.insertMessage = insertMessage;
 module.exports.postedMessage = postedMessage;
 module.exports.getInteraction = getInteraction;
+module.exports.getAuthor = getAuthor;
