@@ -12,71 +12,31 @@ const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION']
 client.once('ready', () => {
 	console.log('Ready!');
 
-    var omail_json = {
-        "name": "mail",
-        "description": "Send a suggestion/report to the officers",
-        "options": [
-            {
-                "name" : "type",
-                "description" : "Mail type",
-                "type" : 3,
-                "required" : true,
-                "choices" : [
-                    {
-                        "name": "suggestion",
-                        "value" : "suggest"
-                    },
-                    {
-                        "name" : "report",
-                        "value" : "report"
-                    }
-                ]
-            },
-            {
-                "name": "message",
-                "description": "Your message",
-                "type": 3,
-                "required": true
-            },
-            {
-                "name": "mode",
-                "description": "Choose to have username displayed to officers. Default is anonymous",
-                "type": 3,
-                "required": false,
-                "choices" : [
-                    {
-                        "name": "anon",
-                        "value": "anon"
-                    },
-                    {
-                        "name": "public",
-                        "value": "public"
-                    }
-                ]
-            }
-        ]
-    }
+    commands.forEach(element => {
+        registerCommand(element);
+    });
+    // var omail_json = ;
     
-    var response_json = {
-        "name": "re",
-        "description": "Respond to an anonymous message",
-        "options": [
-            {
-                "name" : "id",
-                "description" : "ID of message. Hit the mail icon on the desired message to get it.",
-                "type" : 3,
-                "required" : true
-            },
-            {
-                "name": "message",
-                "description": "Your message",
-                "type": 3,
-                "required": true
-            }
-        ]
-    };
-    registerCommand(omail_json);
-    registerCommand(response_json);
+    // var response_json = {
+    //     "name": "re",
+    //     "description": "Respond to an anonymous message",
+    //     "options": [
+    //         {
+    //             "name" : "id",
+    //             "description" : "ID of message. Hit the mail icon on the desired message to get it.",
+    //             "type" : 3,
+    //             "required" : true
+    //         },
+    //         {
+    //             "name": "message",
+    //             "description": "Your message",
+    //             "type": 3,
+    //             "required": true
+    //         }
+    //     ]
+    // };
+    //registerCommand(omail_json);
+    //registerCommand(response_json);
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
         console.log(interaction);
@@ -136,7 +96,7 @@ client.once('ready', () => {
         if(user.bot === false ) {
             // const msg = '```Mail Code: '+ interaction +'```';
             // console.log(msg);
-            DB.getInteraction(msg_id, client.channels.cache.get('822859340812910592'));
+            // DB.getInteraction(msg_id, client.channels.cache.get('822859340812910592'));
             // client.channels.cache.get('822859340812910592').send(msg);
         }
     });
@@ -153,13 +113,34 @@ client.once('ready', () => {
         if(message.reference !== null) {
             message.channel.messages.fetch(message.reference.messageID)
             .then(msg => {
+                // If message is direct reply to bot post.
                 if(msg.author.id === '789932059224702976') {
-
+                  
+                    const embed = new Discord.MessageEmbed()
+                    .setColor('#ff0059')
+                    .setTitle('Re: Submission #0972')
+                    .setAuthor(userhandle, pfp)
+                    // .setDescription(message.content)
+                    .addFields(
+                        { name: ':speech_balloon: Response!', value: message.content},
+                        { name: '\u200B', value: '\u200B'}
+                    )
+                    .setTimestamp()
+                    .setFooter("To respond anonymously, please directly reply to this message. It will be relayed to the officers on your behalf.");
+        
+                    if (msg.channel.type == "dm") {
+                        console.log(message.author);
+                        message.author.send("You are DMing me now!");
+                        return;
+                    }  
                     DB.getInteraction(message.reference.messageID)
                     .then(id=>{
                         DB.getAuthor(id)
                         .then(author=>{
-                            client.users.fetch(author).then(user=>user.send(message.content));
+                            client.users.fetch(author).then(user=>user.send(
+                                'Your anonymous message has been responded to.',
+                                {embed: embed}
+                            ));
 
                         });
 
@@ -216,22 +197,22 @@ function sendMail(args, sender, id) {
         pfp = 'https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png';
     }
 
-    var title ='';
-    if(args[0].value == 'report') {
-        title = ':warning: Report';
-    } else {
-        title = ':speech_balloon: Suggestion';
-    }
+    var tag ='';
+    // if(args[0].value == 'report') {
+    //     tag = ':warning: Report';
+    // } else {
+    //     tag = ':speech_balloon: Suggestion';
+    // }
 
     //var body = args[1].value + "\n ✉️:`"+id+"`";
     const resp = new Discord.MessageEmbed()
         .setColor('#0099ff')
-        .setTitle(title)
+        .setTitle("Submission #" + id.substring(id.length - 6, id.length))
         .setAuthor(user_id, pfp)
-        .setDescription(args[1].value)
-        .addFields(
-            { name: '\u200B', value: '\u200B' },
-        )
+        .setDescription( args[1].value + '\n')
+        // .addFields(
+        //     { name: tag, value: args[1].value + '\n' },
+        // )
         .setTimestamp()
         .setFooter('To respond to the user, please reply to this message directly. It will be forwarded to the user on your behalf.');
 
