@@ -110,15 +110,22 @@ function queryDB(query) {
 }
 
 async function getInteraction(msg_id) {
+    //console.log(msg_id);
     var query = 'SELECT interaction FROM replies WHERE message = "' + msg_id + '"';
     let result = await queryDB(query);
     //console.log(result[0].interaction);
     return result[0].interaction;
 }
 
+async function getMode(interaction) {
+    var query = 'SELECT mode FROM messages WHERE id = "' + interaction + '"';
+    let result = await queryDB(query);
+    return result[0].mode;
+}
 
 module.exports = connection;
 module.exports.insertMessages = insertMessages;
 module.exports.insertReplies = insertReplies;
 module.exports.getInteraction = getInteraction;
 module.exports.getAuthor = getAuthor;
+module.exports.getMode = getMode;

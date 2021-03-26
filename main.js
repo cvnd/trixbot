@@ -43,11 +43,15 @@ client.once('ready', () => {
             //console.log(client.users.fetch(sender.user.id));
             client.channels.cache.get('822859340812910592').send(mail).then(msg=>{
                 DB.insertMessages(interaction, msg.id);
-                DB.insertReplies(interaction.id, msg.id, sender.id);
+                DB.insertReplies(interaction.id, msg.id, sender.user.id);
                 //msg.react('✉️');
                 //DB.postedMessage(interaction.id, msg.id);
             });
-            mail.setFooter('This message was sent anonymously. Your username will not be visible.');
+            if(args.length == 2 && args[1].value == 'public') {
+                mail.setFooter('This message is public. Your username will be visible to the recipients.');
+            } else {
+                mail.setFooter('This message was sent anonymously. Your username will not be visible.');
+            }
             client.users.fetch(sender.user.id).then(user=>user.send('The following message has been sent to the officers: ', {embed: mail}));
 
         
@@ -90,7 +94,7 @@ client.once('ready', () => {
         const sender = message.author;
         //console.log(sender);
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
-        const userhandle = sender.username + '#' +  sender.discriminator;
+        var userhandle = sender.username + '#' +  sender.discriminator;
 
         // If message is a direct reply
         if(message.reference !== null) {
@@ -99,7 +103,8 @@ client.once('ready', () => {
             message.channel.messages.fetch(message.reference.messageID)
             .then(replied_message => {
                 // console.log("REPLIED MESSAGE");
-                // console.log(replied_message);
+                console.log('MessageReference: ' + message.reference.messageID);
+                console.log('replied_message: ' + replied_message.id);
                 // console.log("EO REPLIED MESSAGE");
                 // console.log(message.reference.messageID);
 
@@ -107,28 +112,32 @@ client.once('ready', () => {
                 if(replied_message.author.id === '789932059224702976') {
 
                     // Get interaction from table
-                    DB.getInteraction(replied_message.id)
-                    .then(id=>{
-                        const reply = new Discord.MessageEmbed()
+                    DB.getInteraction(replied_message.id).then(interaction_id=>{
+                        var reply = new Discord.MessageEmbed()
                             .setColor('#ffffff')
                             .setAuthor(userhandle, pfp)
-                            .setTitle('RE: Submission #' + truncateInteractionID(id))
+                            .setTitle('RE: Submission #' + truncateInteractionID(interaction_id))
                             .setDescription(message.content)
                             .setTimestamp()
                             .setFooter(settings.mail_footer);
 
 
                         // Get author of replied_message being replied to
-                        DB.getAuthor(id)
-                        .then(author=>{
+                        DB.getAuthor(interaction_id).then(author=>{
 
                             // If DM to bot, put response in inbox channel
                             if (replied_message.channel.type == "dm") {
                                 // console.log(message.author);
                                 reply.setColor(settings.member_color);
-                                client.channels.cache.get('822859340812910592')
-                                .send("<@" + author + ">", {embed: reply})
-                                .then(resp=>DB.insertReplies(id, resp.id, sender.id));
+
+                                DB.getMode(interaction_id).then(mode=>{
+                                    if(mode == 'anon') {
+                                        userhandle = 'User#' + sender.id.substring(sender.id.length - 4, sender.id.length);
+                                        reply.setAuthor(userhandle, settings.anon_avatar);
+                                    }
+                                    client.channels.cache.get('822859340812910592')
+                                    .send("<@" + author + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
+                                });
                                 //message.author.send("You are DMing me now!");
                                 // return;
                             } else {
@@ -136,7 +145,7 @@ client.once('ready', () => {
                                 client.users.fetch(author).then(user=>user.send(
                                     'Your anonymous message has been responded to.',
                                     {embed: reply}
-                                ).then(resp=>DB.insertReplies(id, resp.id, sender.id)));
+                                ).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id)));
                             }
                         });
 
@@ -188,7 +197,7 @@ function createMail(args, sender, id) {
     } else {
         var len = sender.user.id.length;
         user_id += 'User#' + sender.user.id.substr(len - 4, len);
-        pfp = 'https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png';
+        pfp = settings.anon_avatar;
     }
 
     // if(args[0].value == 'report') {

@@ -1,5 +1,6 @@
 {
     "member_color": "#00e8bd",
     "admin_color" : "#13ab9c",
-    "mail_footer" : "To respond to this, please reply to this message directly. It will be forwarded to the user on your behalf."
+    "mail_footer" : "To respond to this, please reply to this message directly. It will be forwarded to the user on your behalf.",
+    "anon_avatar" : "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/default-avatar.png"
 }
