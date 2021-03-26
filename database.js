@@ -12,6 +12,7 @@ connection.connect(function(err) {
         return console.error('error: ' + err.message);
     }
 
+    //
     console.log('Connected to the MySQL server.');
 });
 
@@ -41,7 +42,7 @@ function insertMessages(interaction, msg_id) {
         if (error) throw error;
     // Neat!
     });
-    console.log(query.sql); // INSERT INTO posts SET `id` = 1, `title` = 'Hello MySQL'
+    //console.log(query.sql); // INSERT INTO posts SET `id` = 1, `title` = 'Hello MySQL'
 
 }
 
@@ -114,6 +115,7 @@ async function getInteraction(msg_id) {
     //console.log(result[0].interaction);
     return result[0].interaction;
 }
+
 
 module.exports = connection;
 module.exports.insertMessages = insertMessages;

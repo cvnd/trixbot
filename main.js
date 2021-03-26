@@ -3,7 +3,7 @@ const Discord = require('./node_modules/discord.js');
 const auth = require('./auth.json');
 const DB = require('./database.js');
 const commands = require('./commands.json');
-var config = require('./config.json');
+var settings = require('./config.json');
 const { WebhookClient } = require('discord.js');
 // create a new Discord client
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
@@ -12,13 +12,14 @@ const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION']
 client.once('ready', () => {
 	console.log('Ready!');
 
+    // Register all commands
     commands.forEach(element => {
         registerCommand(element);
     });
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
-        console.log(interaction);
-        console.log(interaction.data);
+        //console.log(interaction);
+        //console.log(interaction.data);
         const command = interaction.data.name.toLowerCase();
         const args = interaction.data.options;
         const sender = interaction.member;
@@ -39,14 +40,16 @@ client.once('ready', () => {
                 }        
             })
         
-            console.log(client.users.fetch(sender.user.id));
-            client.users.fetch(sender.user.id).then(user=>user.send('The following message has been sent to the officers: ', {embed: mail}));
+            //console.log(client.users.fetch(sender.user.id));
             client.channels.cache.get('822859340812910592').send(mail).then(msg=>{
                 DB.insertMessages(interaction, msg.id);
-                DB.insertReplies(interaction.id, msg.id, msg.author.id);
+                DB.insertReplies(interaction.id, msg.id, sender.id);
                 //msg.react('✉️');
                 //DB.postedMessage(interaction.id, msg.id);
             });
+            mail.setFooter('This message was sent anonymously. Your username will not be visible.');
+            client.users.fetch(sender.user.id).then(user=>user.send('The following message has been sent to the officers: ', {embed: mail}));
+
         
         }
     });
@@ -69,7 +72,7 @@ client.once('ready', () => {
         //console.log(`${reaction.message.author}'s message "${reaction.message.content}" gained a reaction!`);
         // The reaction is now also fully available and the properties will be reflected accurately:
         //console.log(`${reaction.count} user(s) have given the same reaction to this message!`);
-        const msg_id = reaction.message.id;
+        //const msg_id = reaction.message.id;
         //const interaction = DB.getInteraction(msg_id, client.channels.cache.get('822859340812910592'));
         //console.log(interaction);
         if(user.bot === false ) {
@@ -81,9 +84,9 @@ client.once('ready', () => {
     });
     
     client.on('message', function(message){
-        console.log("MESSAGE");
-        console.log(message);
-        console.log("EO MESSAGE");
+        // console.log("MESSAGE");
+        // console.log(message);
+        // console.log("EO MESSAGE");
         const sender = message.author;
         //console.log(sender);
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
@@ -95,29 +98,24 @@ client.once('ready', () => {
             // Get ID of message it's replying to
             message.channel.messages.fetch(message.reference.messageID)
             .then(replied_message => {
-                console.log("REPLIED MESSAGE");
-                console.log(replied_message);
-                console.log("EO REPLIED MESSAGE");
+                // console.log("REPLIED MESSAGE");
+                // console.log(replied_message);
+                // console.log("EO REPLIED MESSAGE");
+                // console.log(message.reference.messageID);
+
                 // If message is direct reply to bot post.
                 if(replied_message.author.id === '789932059224702976') {
 
-                    // if (replied_message.channel.type == "dm") {
-                    //     // console.log(message.author);
-                    //     client.channels.cache.get('822859340812910592').send(reply);
-                    //     //message.author.send("You are DMing me now!");
-                    //     // return;
-                    // }
-
                     // Get interaction from table
-                    DB.getInteraction(message.reference.messageID)
+                    DB.getInteraction(replied_message.id)
                     .then(id=>{
                         const reply = new Discord.MessageEmbed()
-                            .setColor('#ff0059')
+                            .setColor('#ffffff')
                             .setAuthor(userhandle, pfp)
                             .setTitle('RE: Submission #' + truncateInteractionID(id))
                             .setDescription(message.content)
                             .setTimestamp()
-                            .setFooter("To respond anonymously, please directly reply to this message. It will be relayed to the officers on your behalf.");
+                            .setFooter(settings.mail_footer);
 
 
                         // Get author of replied_message being replied to
@@ -127,12 +125,14 @@ client.once('ready', () => {
                             // If DM to bot, put response in inbox channel
                             if (replied_message.channel.type == "dm") {
                                 // console.log(message.author);
+                                reply.setColor(settings.member_color);
                                 client.channels.cache.get('822859340812910592')
                                 .send("<@" + author + ">", {embed: reply})
                                 .then(resp=>DB.insertReplies(id, resp.id, sender.id));
                                 //message.author.send("You are DMing me now!");
                                 // return;
                             } else {
+                                reply.setColor(settings.admin_color);
                                 client.users.fetch(author).then(user=>user.send(
                                     'Your anonymous message has been responded to.',
                                     {embed: reply}
@@ -184,7 +184,7 @@ function createMail(args, sender, id) {
     if(args.length == 2 && args[1].value == 'public') {
         user_id += sender.user.username + '#' + sender.user.discriminator; 
         pfp = 'https://cdn.discordapp.com/avatars/'+ sender.user.id +'/'+ sender.user.avatar +'.png';
-        console.log(pfp);
+        //console.log(pfp);
     } else {
         var len = sender.user.id.length;
         user_id += 'User#' + sender.user.id.substr(len - 4, len);
@@ -199,7 +199,7 @@ function createMail(args, sender, id) {
 
     //var body = args[1].value + "\n ✉️:`"+id+"`";
     const msg = new Discord.MessageEmbed()
-                .setColor('#0099ff')
+                .setColor(settings.member_color)
                 .setTitle("Submission #" + truncateInteractionID(id))
                 .setAuthor(user_id, pfp)
                 .setDescription( args[0].value + '\n')
@@ -207,7 +207,7 @@ function createMail(args, sender, id) {
                 //     { name: tag, value: args[1].value + '\n' },
                 // )
                 .setTimestamp()
-                .setFooter('To respond to the user, please reply to this message directly. It will be forwarded to the user on your behalf.');
+                .setFooter(settings.mail_footer);
 
     return msg;
 }
