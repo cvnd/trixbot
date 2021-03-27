@@ -5,11 +5,13 @@ const DB = require('./database.js');
 const commands = require('./commands.json');
 var settings = require('./config.json');
 const { WebhookClient } = require('discord.js');
+var guild_id = '';
 // create a new Discord client
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
 // when the client is ready, run this code
 // this event will only trigger one time after logging in
 client.once('ready', () => {
+    console.log(client.guilds);
 	console.log('Ready!');
 
     // Register all commands
@@ -18,6 +20,12 @@ client.once('ready', () => {
     });
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
+
+        if(guild_id == '') {
+            guild_id = interaction.guild_id;
+            //console.log(interaction);
+        }
+
         //console.log(interaction);
         //console.log(interaction.data);
         const command = interaction.data.name.toLowerCase();
@@ -88,6 +96,9 @@ client.once('ready', () => {
     });
     
     client.on('message', function(message){
+        if(guild_id == '') {
+            guild_id = message.guild_id;
+        }
         // console.log("MESSAGE");
         // console.log(message);
         // console.log("EO MESSAGE");
@@ -99,20 +110,27 @@ client.once('ready', () => {
         // If message is a direct reply
         if(message.reference !== null) {
             
-            // Get ID of message it's replying to
+            // Get ID of message it's replying to (replied_message)
             message.channel.messages.fetch(message.reference.messageID)
             .then(replied_message => {
                 // console.log("REPLIED MESSAGE");
-                console.log('MessageReference: ' + message.reference.messageID);
-                console.log('replied_message: ' + replied_message.id);
+                //console.log('MessageReference: ' + message.reference.messageID);
+                //console.log('replied_message: ' + replied_message.id);
                 // console.log("EO REPLIED MESSAGE");
                 // console.log(message.reference.messageID);
 
                 // If message is direct reply to bot post.
                 if(replied_message.author.id === '789932059224702976') {
 
-                    // Get interaction from table
+                    // Get original interaction from table
                     DB.getInteraction(replied_message.id).then(interaction_id=>{
+
+                        // If no interaction exists, return
+                        if(interaction_id === 0) {
+                            return;
+                        }
+
+                        // Reply embed
                         var reply = new Discord.MessageEmbed()
                             .setColor('#ffffff')
                             .setAuthor(userhandle, pfp)
@@ -122,21 +140,28 @@ client.once('ready', () => {
                             .setFooter(settings.mail_footer);
 
 
-                        // Get author of replied_message being replied to
+                        // Get author of original interaction
                         DB.getAuthor(interaction_id).then(author=>{
 
                             // If DM to bot, put response in inbox channel
                             if (replied_message.channel.type == "dm") {
+
                                 // console.log(message.author);
                                 reply.setColor(settings.member_color);
 
                                 DB.getMode(interaction_id).then(mode=>{
+
+                                    // If initial interaction was set to anonymous, change author to hide user.
                                     if(mode == 'anon') {
-                                        userhandle = 'User#' + sender.id.substring(sender.id.length - 4, sender.id.length);
+                                        userhandle = 'User#' + truncateAuthorID(sender.id);
                                         reply.setAuthor(userhandle, settings.anon_avatar);
                                     }
-                                    client.channels.cache.get('822859340812910592')
-                                    .send("<@" + author + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
+
+                                    // Get author of message being replied to
+                                    DB.getAuthorByMsg(replied_message).then(replied_author_id=>{
+                                        client.channels.cache.get('822859340812910592')
+                                        .send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
+                                    });
                                 });
                                 //message.author.send("You are DMing me now!");
                                 // return;
@@ -195,18 +220,11 @@ function createMail(args, sender, id) {
         pfp = 'https://cdn.discordapp.com/avatars/'+ sender.user.id +'/'+ sender.user.avatar +'.png';
         //console.log(pfp);
     } else {
-        var len = sender.user.id.length;
-        user_id += 'User#' + sender.user.id.substr(len - 4, len);
+        //var len = sender.user.id.length;
+        user_id += 'User#' + truncateAuthorID(sender.user.id);
         pfp = settings.anon_avatar;
     }
 
-    // if(args[0].value == 'report') {
-    //     tag = ':warning: Report';
-    // } else {
-    //     tag = ':speech_balloon: Suggestion';
-    // }
-
-    //var body = args[1].value + "\n ✉️:`"+id+"`";
     const msg = new Discord.MessageEmbed()
                 .setColor(settings.member_color)
                 .setTitle("Submission #" + truncateInteractionID(id))
@@ -223,6 +241,10 @@ function createMail(args, sender, id) {
 
 function truncateInteractionID(id) {
     return id.substring(id.length - 5, id.length);
+}
+
+function truncateAuthorID(id) {
+    return id.substring(id.length - 4, id.length)
 }
 
 function parseOptions(args) {
@@ -289,7 +311,7 @@ function pollReact(emojis, msg) {
 
 
 function registerCommand(json) {
-    client.api.applications(client.user.id).guilds('349214441604120578').commands.post({data: json});
+    client.api.applications(client.user.id).commands.post({data: json});
 }
 // Log our bot in using the token from https://discord.com/developers/applications
 client.login(auth.token);

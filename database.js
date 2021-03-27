@@ -16,6 +16,9 @@ connection.connect(function(err) {
     console.log('Connected to the MySQL server.');
 });
 
+function checkTable() {
+
+}
 function insertMessages(interaction, msg_id) {
     const sender = interaction.member
     const id = interaction.id
@@ -108,12 +111,17 @@ function queryDB(query) {
     });
 
 }
-
+// .guilds(guild_id)
 async function getInteraction(msg_id) {
     //console.log(msg_id);
     var query = 'SELECT interaction FROM replies WHERE message = "' + msg_id + '"';
     let result = await queryDB(query);
-    //console.log(result[0].interaction);
+    //console.log(result[0]);
+    //console.log(typeof result[0]);
+    if(typeof result[0] == 'undefined') {
+        console.log('Attempted to reply to message not logged. Ignoring.');
+        return 0;
+    }
     return result[0].interaction;
 }
 
@@ -123,9 +131,63 @@ async function getMode(interaction) {
     return result[0].mode;
 }
 
+async function getAuthorByMsg(msg_id) {
+    var query = 'SELECT author_id FROM replies WHERE message = "' + msg_id + '"';
+    let result = await queryDB(query);
+    return result[0].author_id;
+}
+
+
+function createMessageTable(guild_id) {
+    var table =
+    'CREATE TABLE ' + guild_id + '_interactions (' +
+        'id varchar(32) not null primary key,'+ 
+        'message_id varchar(32) not null,'+
+        'content longtext not null,'+
+        'author_id varchar(32) not null,' +
+        'date datetime not null default now(),'+
+        'mode not null default "anon"'+
+    ')';
+
+    var query = connection.query(table, function(error, results, fields) {
+        if(error) throw error;
+    });
+}
+
+function createRepliesTable(guild_id) {
+    var table =
+    'CREATE TABLE ' + guild_id + '_replies (' +
+        'interaction_id varchar(32) not null primary key,'+ 
+        'message_id varchar(32) not null,'+
+        //'content longtext not null,'+
+        'author_id varchar(32) not null,' +
+        'date datetime not null default now(),'+
+    ')';
+
+    var query = connection.query(table, function(error, results, fields) {
+        if(error) throw error;
+    });
+}
+
+async function checkGuild(guild_id) {
+    //console.log(msg_id);
+    var query = 'SELECT guild FROM guild_settings WHERE guild_id = "' + guild_id + '"';
+    let result = await queryDB(query);
+    //console.log(result[0]);
+    //console.log(typeof result[0]);
+    if(typeof result[0] == 'undefined') {
+        console.log('Guild not stored in database.');
+        return false;
+    }
+    return true;
+}
 module.exports = connection;
 module.exports.insertMessages = insertMessages;
 module.exports.insertReplies = insertReplies;
 module.exports.getInteraction = getInteraction;
 module.exports.getAuthor = getAuthor;
 module.exports.getMode = getMode;
+module.exports.createMessageTable = createMessageTable;
+module.exports.createRepliesTable = createRepliesTable;
+module.exports.checkGuild = checkGuild;
+module.exports.getAuthorByMsg = getAuthorByMsg
