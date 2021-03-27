@@ -176,10 +176,22 @@ async function checkGuild(guild_id) {
     //console.log(result[0]);
     //console.log(typeof result[0]);
     if(typeof result[0] == 'undefined') {
-        console.log('Guild not stored in database.');
+        // console.log('Guild not stored in database.');
         return false;
     }
     return true;
+}
+
+async function getGuildSettings(guild_id) {
+    var query = 'SELECT patreon_tier, inbox_channel, commands_channel, default_mode FROM guild_settings WHERE guild_id = "' + guild_id + '"';
+    let result = await queryDB(query);
+    //console.log(result[0]);
+    //console.log(typeof result[0]);
+    if(typeof result[0] == 'undefined') {
+        // console.log('Guild not stored in database.');
+        return 0;
+    }
+    return result[0];  
 }
 module.exports = connection;
 module.exports.insertMessages = insertMessages;
@@ -190,4 +202,5 @@ module.exports.getMode = getMode;
 module.exports.createMessageTable = createMessageTable;
 module.exports.createRepliesTable = createRepliesTable;
 module.exports.checkGuild = checkGuild;
-module.exports.getAuthorByMsg = getAuthorByMsg
+module.exports.getAuthorByMsg = getAuthorByMsg;
+module.exports.getGuildSettings = getGuildSettings;

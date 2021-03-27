@@ -3,11 +3,19 @@ const Discord = require('./node_modules/discord.js');
 const auth = require('./auth.json');
 const DB = require('./database.js');
 const commands = require('./commands.json');
-var settings = require('./config.json');
+var config = require('./config.json');
 const { WebhookClient } = require('discord.js');
 var guild_id = '';
+var guild_settings = {
+    set: false,
+    default_mode: '',
+    commands_channel: '',
+    inbox_channel: '',
+    patreon_tier: ''
+};
 // create a new Discord client
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
+
 // when the client is ready, run this code
 // this event will only trigger one time after logging in
 client.once('ready', () => {
@@ -25,6 +33,8 @@ client.once('ready', () => {
             guild_id = interaction.guild_id;
             //console.log(interaction);
         }
+        validateGuild();
+
 
         //console.log(interaction);
         //console.log(interaction.data);
@@ -99,11 +109,10 @@ client.once('ready', () => {
         if(guild_id == '') {
             guild_id = message.guild_id;
         }
-        // console.log("MESSAGE");
-        // console.log(message);
-        // console.log("EO MESSAGE");
+
+        validateGuild();
+
         const sender = message.author;
-        //console.log(sender);
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
         var userhandle = sender.username + '#' +  sender.discriminator;
 
@@ -113,11 +122,6 @@ client.once('ready', () => {
             // Get ID of message it's replying to (replied_message)
             message.channel.messages.fetch(message.reference.messageID)
             .then(replied_message => {
-                // console.log("REPLIED MESSAGE");
-                //console.log('MessageReference: ' + message.reference.messageID);
-                //console.log('replied_message: ' + replied_message.id);
-                // console.log("EO REPLIED MESSAGE");
-                // console.log(message.reference.messageID);
 
                 // If message is direct reply to bot post.
                 if(replied_message.author.id === '789932059224702976') {
@@ -137,7 +141,7 @@ client.once('ready', () => {
                             .setTitle('RE: Submission #' + truncateInteractionID(interaction_id))
                             .setDescription(message.content)
                             .setTimestamp()
-                            .setFooter(settings.mail_footer);
+                            .setFooter(config.mail_footer);
 
 
                         // Get author of original interaction
@@ -147,14 +151,14 @@ client.once('ready', () => {
                             if (replied_message.channel.type == "dm") {
 
                                 // console.log(message.author);
-                                reply.setColor(settings.member_color);
+                                reply.setColor(config.member_color);
 
                                 DB.getMode(interaction_id).then(mode=>{
 
                                     // If initial interaction was set to anonymous, change author to hide user.
                                     if(mode == 'anon') {
                                         userhandle = 'User#' + truncateAuthorID(sender.id);
-                                        reply.setAuthor(userhandle, settings.anon_avatar);
+                                        reply.setAuthor(userhandle, config.anon_avatar);
                                     }
 
                                     // Get author of message being replied to
@@ -166,7 +170,7 @@ client.once('ready', () => {
                                 //message.author.send("You are DMing me now!");
                                 // return;
                             } else {
-                                reply.setColor(settings.admin_color);
+                                reply.setColor(config.admin_color);
                                 client.users.fetch(author).then(user=>user.send(
                                     'Your anonymous message has been responded to.',
                                     {embed: reply}
@@ -222,11 +226,11 @@ function createMail(args, sender, id) {
     } else {
         //var len = sender.user.id.length;
         user_id += 'User#' + truncateAuthorID(sender.user.id);
-        pfp = settings.anon_avatar;
+        pfp = config.anon_avatar;
     }
 
     const msg = new Discord.MessageEmbed()
-                .setColor(settings.member_color)
+                .setColor(config.member_color)
                 .setTitle("Submission #" + truncateInteractionID(id))
                 .setAuthor(user_id, pfp)
                 .setDescription( args[0].value + '\n')
@@ -234,7 +238,7 @@ function createMail(args, sender, id) {
                 //     { name: tag, value: args[1].value + '\n' },
                 // )
                 .setTimestamp()
-                .setFooter(settings.mail_footer);
+                .setFooter(config.mail_footer);
 
     return msg;
 }
@@ -309,6 +313,23 @@ function pollReact(emojis, msg) {
     }
 }
 
+async function validateGuild() {
+    const exists = DB.checkGuild(guild_id);
+
+    if(exists) {
+        DB.getGuildSettings(guild_id).then(settings=>{
+            guild_settings.patreon_tier = settings.patreon_tier;
+            guild_settings.commands_channel = settings.commands_channel;
+            guild_settings.inbox_channel = settings.inbox_channel;
+            guild_settings.default_mode = settings.default_mode;
+            return;
+        });
+    }
+}
+
+function initGuild(trigger) {
+    client.channel.cache.get(trigger).send('This bot has not been set up for your server. Please use the following commands to set up:');
+}
 
 function registerCommand(json) {
     client.api.applications(client.user.id).commands.post({data: json});
