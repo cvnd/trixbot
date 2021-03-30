@@ -4,14 +4,15 @@ const auth = require('./auth.json');
 const DB = require('./database.js');
 const commands = require('./commands.json');
 var config = require('./config.json');
-const { WebhookClient } = require('discord.js');
-var guild_id = '';
+const { WebhookClient, MessageAttachment } = require('discord.js');
+//var guild_id = '';
 var guild_settings = {
+    id: '',
     set: false,
-    default_mode: '',
+    default_mode: 'anon',
     commands_channel: '',
     inbox_channel: '',
-    patreon_tier: ''
+    patreon_tier: '0'
 };
 // create a new Discord client
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
@@ -19,8 +20,8 @@ const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION']
 // when the client is ready, run this code
 // this event will only trigger one time after logging in
 client.once('ready', () => {
-    console.log(client.guilds);
-	console.log('Ready!');
+
+    console.log('Ready!');
 
     // Register all commands
     commands.forEach(element => {
@@ -29,25 +30,67 @@ client.once('ready', () => {
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
 
-        if(guild_id == '') {
-            guild_id = interaction.guild_id;
-            //console.log(interaction);
-        }
-        validateGuild();
 
-
-        //console.log(interaction);
-        //console.log(interaction.data);
         const command = interaction.data.name.toLowerCase();
-        const args = interaction.data.options;
-        const sender = interaction.member;
+        
         if (command === 'mail'){ 
 
+            const args = interaction.data.options;
+            const sender = interaction.member;
+    
+            if(guild_settings.id == '') {
+                guild_settings.id = interaction.guild_id;
+                let set = await validateGuild();
+            }
+    
+            if(!guild_settings.set) {
+                // Do things
+                //updateSettings(interaction, 'interaction');
+                //console.log("NOT SET");
+
+                //failedInteraction("This bot is not fully configured for your server. Use `!trix help` to view how to get started.")
+                client.api.interactions(interaction.id, interaction.token).callback.post({
+                    data: {
+                        type: 3,
+                        data: {
+                            content: "This bot is not configured for your server. Use `!trix help` to view how to get started.",
+                            flags: 64
+                            }        
+                    }        
+                })
+                return;
+            }
+
+            console.log(interaction);
+
+            if(guild_settings.commands_channel.id != interaction.channel_id) {
+                //failedInteraction("Commands are disabled for this channel. Please visit #" + guild_settings.commands_channel.name + " instead")
+                client.api.interactions(interaction.id, interaction.token).callback.post({
+                    data: {
+                        type: 3,
+                        data: {
+                            content: "Commands are disabled for this channel. Please visit #" + guild_settings.commands_channel.name + " instead",
+                            flags: 64
+                            }        
+                    }        
+                })
+                return;
+            }
             // Create embed
             const mail = createMail(args, sender, interaction.id);
 
             // Insert info into DB
             
+
+        
+            //console.log(client.users.fetch(sender.user.id));
+            guild_settings.inbox_channel.send(mail).then(msg=>{
+                DB.insertMessages(interaction, msg.id);
+                DB.insertReplies(interaction.id, msg.id, sender.user.id);
+                //msg.react('✉️');
+                //DB.postedMessage(interaction.id, msg.id);
+            });
+
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
                     type: 3,
@@ -57,14 +100,7 @@ client.once('ready', () => {
                         }        
                 }        
             })
-        
-            //console.log(client.users.fetch(sender.user.id));
-            client.channels.cache.get('822859340812910592').send(mail).then(msg=>{
-                DB.insertMessages(interaction, msg.id);
-                DB.insertReplies(interaction.id, msg.id, sender.user.id);
-                //msg.react('✉️');
-                //DB.postedMessage(interaction.id, msg.id);
-            });
+
             if(args.length == 2 && args[1].value == 'public') {
                 mail.setFooter('This message is public. Your username will be visible to the recipients.');
             } else {
@@ -105,17 +141,12 @@ client.once('ready', () => {
         }
     });
     
-    client.on('message', function(message){
-        if(guild_id == '') {
-            guild_id = message.guild_id;
-        }
-
-        validateGuild();
+    client.on('message', async function(message){
 
         const sender = message.author;
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
         var userhandle = sender.username + '#' +  sender.discriminator;
-
+        //console.log(message.channel);
         // If message is a direct reply
         if(message.reference !== null) {
             
@@ -125,6 +156,17 @@ client.once('ready', () => {
 
                 // If message is direct reply to bot post.
                 if(replied_message.author.id === '789932059224702976') {
+
+                    if(guild_settings.id == '') {
+                        guild_settings.id = message.guild_id;
+                        validateGuild();
+                    }
+            
+                    if(!guild_settings.set) {
+                        console.log("go set");
+                        //updateSettings(message, 'message');
+                        return;
+                    }
 
                     // Get original interaction from table
                     DB.getInteraction(replied_message.id).then(interaction_id=>{
@@ -161,10 +203,9 @@ client.once('ready', () => {
                                         reply.setAuthor(userhandle, config.anon_avatar);
                                     }
 
-                                    // Get author of message being replied to
+                                    // Get author of message being replied to and send to inbox channel
                                     DB.getAuthorByMsg(replied_message).then(replied_author_id=>{
-                                        client.channels.cache.get('822859340812910592')
-                                        .send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
+                                        guild_settings.inbox_channel.send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
                                     });
                                 });
                                 //message.author.send("You are DMing me now!");
@@ -184,11 +225,121 @@ client.once('ready', () => {
             .catch(console.error);
           
         }
+
+        if(message.content.length > 5 && message.content.substring(0, 5) === '!trix') {
+            if(guild_settings.id == '') {
+                guild_settings.id = message.guild.id;
+                var set = await validateGuild();
+            }
+    
+            // if(!guild_settings.set) {
+            //     console.log("go set");
+            //     updateSettings(message, 'message');
+            //     return;
+            // }
+
+            const command = message.content.split(/\s+/)[1];
+            if(command == 'help'){
+                const help = new Discord.MessageEmbed()
+                .setColor('#efefef')
+                .setDescription('All command parameters should be entered within double quotes.')
+                .addFields({
+                    name:'Command List',
+                    value:  '`!trix inbox "channel-name"` to set inbox channel \n'+
+                            '`!trix commands "channel-name"` to set commands channel \n' +
+                            '`!trix settings` to show defined settings'
+                })
+                .setTimestamp()
+                .setFooter('Thank you for installing Trix! If you find any bugs, please send it to cloe.nd@2073 along with any screenshots.'); 
+                message.channel.send({embed: help});
+                //console.log("pewpew");
+
+            } else if (command == 'inbox') {
+                var param = [];
+                try{
+                    param = message.content.match(/"([^"]*)"/g)[0];
+                    param = param.substring(1, param.length - 1);
+                } catch(err) {
+                    console.log("Error in parsing " + message.content + ": ");
+                    console.log(err);
+                    message.channel.send("Unable to execute command. Double-check your format and try again?");
+                    return;
+                }                //console.log(param);
+                //console.log(client.channels.cache);
+                let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
+                //console.log(channel.id);
+                guild_settings.inbox_channel = channel;
+                DB.updateInboxChannel(guild_settings.id, channel.id);
+            } else if (command == 'commands') {
+    
+                var param = [];
+                try{
+                    param = message.content.match(/"([^"]*)"/g)[0];
+                    param = param.substring(1, param.length - 1);
+                } catch(err) {
+                    console.log("Error in parsing " + message.content + ": ");
+                    console.log(err);
+                    message.channel.send("Unable to execute command. Double-check your format and try again?");
+                    return
+                }
+                //console.log(param);
+                //console.log(client.channels.cache);
+                let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
+                //console.log(channel.id);
+                guild_settings.commands_channel = channel;
+                //console.log(guild_id);
+                DB.updateCommandsChannel(guild_settings.id, channel.id);
+
+            } else if(command == 'settings'){
+                var body = '';
+                console.log(guild_settings);
+                for(var key in guild_settings) {
+                    if(key !== 'set') {
+                        var title = key[0].toUpperCase() + key.substring(1);
+                        body += '\n' + title.replace("_", " ") + ': '
+                        if (typeof guild_settings[key] == 'undefined' || guild_settings[key] === ''){
+                            body += "Not set"
+                        } else if(key == 'inbox_channel' || key == 'commands_channel') {
+                            body += guild_settings[key].name;
+                        } else {
+                            body +=  guild_settings[key];
+                        }
+                    }
+
+                }
+
+                const embed = new Discord.MessageEmbed()
+                            .setTitle('Current settings')
+                            .setDescription(body)
+                            .setColor('#efefef')
+                            .setFooter('To see all commands, use `!trix help`');
+                
+                message.channel.send(embed);
+            }else {
+                message.channel.send("Sorry, this command is not recognized. Please use `!trix help` to view usable commands.");
+            }
+
+            //console.log(guild_settings);
+            if(isSet(guild_settings)) {
+                guild_settings.set = true;
+            }
+        }
     
     });
     
 });
 
+// function updateSettings(event, type) {
+//     console.log(event);
+//     var channel_id = '';
+//     if(type == 'interaction') {
+//         channel_id = event.channel_id;
+//     } else if (type == 'message') {
+//         channel_id = event.channel.id;
+//     }
+//     console.log(channel_id);
+//     client.channel.cache.get(channel_id).send('Thank you for installing Trix! To start setting configuration, please type `!trix inbox [channel_name]` .');  
+// }
 function createMail(args, sender, id) {
     var user_id = '';
     var pfp ='';
@@ -224,6 +375,56 @@ function truncateInteractionID(id) {
 
 function truncateAuthorID(id) {
     return id.substring(id.length - 4, id.length)
+}
+
+async function validateGuild() {
+    // Check if guild exists in table
+    var exists = await DB.checkGuild(guild_settings.id);
+    //console.log(exists);
+
+    if(exists) {
+
+        // If it does exist, fetch settings
+        var set = await DB.getGuildSettings(guild_settings.id).then(settings=>{
+            //console.log(settings);
+            if(isSet(settings).length === 0) {
+                guild_settings.patreon_tier = settings.patreon_tier;
+                guild_settings.commands_channel = client.channels.cache.get(settings.commands_channel);
+                guild_settings.inbox_channel = client.channels.cache.get(settings.inbox_channel);
+                guild_settings.default_mode = settings.default_mode;
+                guild_settings.set = true;
+            }
+            
+            //console.log(guild_settings);
+        });
+    } else {
+        DB.createGuildSettings(guild_settings.id);
+    }
+}
+
+function isSet(vals) {
+    var empty = [];
+    for(var key in vals) {
+        //console.log(vals[key]);
+        if(typeof vals[key] == 'undefined') {
+            empty.push(key);
+        }
+    }
+    //console.log(empty);
+    return empty;
+}
+
+function failedInteraction(msg) {
+    client.api.interactions(interaction.id, interaction.token).callback.post({
+        data: {
+            type: 3,
+            data: {
+                content: msg,
+                flags: 64
+                }        
+        }        
+    })
+    return;
 }
 
 function registerCommand(json) {

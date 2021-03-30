@@ -169,17 +169,57 @@ function createRepliesTable(guild_id) {
     });
 }
 
+function createGuildSettings(guild_id) {
+    var stmt = 'INSERT INTO guild_settings (guild_id) VALUES (' + guild_id + ')';
+
+    var query = connection.query(stmt, function(error, results, fields) {
+        if(error) throw error;
+    }); 
+
+}
+
+function updateSettings(guild_id, inbox_channel = null, commands_channel = null, mode = 'anon') {
+    var stmt =  'UPDATE guild_settings SET ' +
+                'inbox_channel = ' + inbox_channel + ', ' +
+                'commands_channel = ' + commands_channel + ', ' +
+                'default_mode = ' + mode +
+                'WHERE guild_id = ' + guild_id;
+
+    var query = connection.query(stmt, function(error, results, fields){
+        if(error) throw error;
+    })
+}
+
+function updateInboxChannel(guild_id, channel_id) {
+    console.log(guild_id);
+    var stmt = 'UPDATE guild_settings SET inbox_channel = "' + channel_id + '" WHERE guild_id = ' + guild_id;
+
+    var query = connection.query(stmt, function(error, results, fields){
+        if(error) throw error;
+    })
+}
+
+function updateCommandsChannel(guild_id, channel_id) {
+    var stmt = 'UPDATE guild_settings SET commands_channel = "' + channel_id + '" WHERE guild_id = ' + guild_id;
+
+    var query = connection.query(stmt, function(error, results, fields){
+        if(error) throw error;
+    })
+}
+
 async function checkGuild(guild_id) {
     //console.log(msg_id);
-    var query = 'SELECT guild FROM guild_settings WHERE guild_id = "' + guild_id + '"';
+    var query = 'SELECT guild_id FROM guild_settings WHERE guild_id = "' + guild_id + '"';
     let result = await queryDB(query);
     //console.log(result[0]);
-    //console.log(typeof result[0]);
+    // return (typeof result[0] == 'undefined');
+    // console.log(typeof result[0]);
     if(typeof result[0] == 'undefined') {
-        // console.log('Guild not stored in database.');
+        console.log('Guild not stored in database.');
         return false;
+    } else {
+        return true;
     }
-    return true;
 }
 
 async function getGuildSettings(guild_id) {
@@ -193,6 +233,7 @@ async function getGuildSettings(guild_id) {
     }
     return result[0];  
 }
+
 module.exports = connection;
 module.exports.insertMessages = insertMessages;
 module.exports.insertReplies = insertReplies;
@@ -204,3 +245,7 @@ module.exports.createRepliesTable = createRepliesTable;
 module.exports.checkGuild = checkGuild;
 module.exports.getAuthorByMsg = getAuthorByMsg;
 module.exports.getGuildSettings = getGuildSettings;
+module.exports.createGuildSettings = createGuildSettings;
+module.exports.updateSettings = updateSettings;
+module.exports.updateCommandsChannel = updateCommandsChannel;
+module.exports.updateInboxChannel = updateInboxChannel;
