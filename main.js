@@ -79,11 +79,11 @@ client.once('ready', () => {
             //console.log(client.users.fetch(sender.user.id));
             // guild_settings.inbox_channel.send(mail).then(msg=>{
             //     DB.insertMessages(interaction, msg.id);
-            //     DB.insertReplies(interaction.id, msg.id, sender.user.id);
+            //     DB.insertReply(interaction.id, msg.id, sender.user.id);
             //     //msg.react('✉️');
             //     //DB.postedMessage(interaction.id, msg.id);
             // });
-            client.guilds.cache.get(guild_id).channels.cache.get(guild_settings.inbox_channel).send({embed: mail}).then(resp=>DB.insertInteractions(interaction, resp.id));    
+            client.guilds.cache.get(guild_id).channels.cache.get(guild_settings.inbox_channel).send({embed: mail}).then(resp=>DB.insertInteraction(interaction, resp.id));    
 
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
@@ -137,7 +137,7 @@ client.once('ready', () => {
     });
     
     client.on('message', async function(message){
-        console.log(message);
+        //console.log(message);
         // If message is from user and if it's in a guild channel
 
      
@@ -147,9 +147,9 @@ client.once('ready', () => {
         //console.log(message.channel);
         // If message is a direct reply
     
-        console.log(message.author);
+        //console.log(message.author);
         let user = client.users.fetch(message.author.id);
-        console.log(user);
+        //console.log(user);
         if(message.reference !== null && message.author.bot !== true) {
 
             // Get ID of message it's replying to (replied_message)
@@ -159,14 +159,15 @@ client.once('ready', () => {
                 // If message is direct reply to bot post.
                 if(replied_message.author.id === '789932059224702976') {
 
+                    var guild_id = '';
                     if(message.channel.type === 'dm') {
                         //let original_interaction = await 
-                        console.log(message.author);
-                        //console.log(client);
+                        console.log("triggering message is a DM")
                     } else {
-                        const guild_id = message.guild.id;
+                        guild_id = message.guild.id;
                         var guild_settings = await fetchSettings(guild_id);    
                     }
+
                     checkSettings(guild_settings);    
                     //var guild_settings = await fetchSettings(guild_id);
 
@@ -189,15 +190,14 @@ client.once('ready', () => {
 
 
                         // Get author of original interaction
-                        DB.getAuthor(interaction_id).then(author=>{
+                        DB.getAuthorByInteraction(interaction_id, guild_id).then(author=>{
 
                             // If DM to bot, put response in inbox channel
                             if (replied_message.channel.type == "dm") {
 
-                                // console.log(message.author);
                                 reply.setColor(config.member_color);
 
-                                DB.getMode(interaction_id).then(mode=>{
+                                DB.getMode(interaction_id, guild_id).then(mode=>{
 
                                     // If initial interaction was set to anonymous, change author to hide user.
                                     if(mode == 'anon') {
@@ -207,7 +207,7 @@ client.once('ready', () => {
 
                                     // Get author of message being replied to and send to inbox channel
                                     DB.getAuthorByMsg(replied_message).then(replied_author_id=>{
-                                        message.guild.channels.cache.get(guild_setting.inbox_channel).send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
+                                        message.guild.channels.cache.get(guild_setting.inbox_channel).send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReply(interaction_id, resp.id, sender.id));    
                                     });
                                 });
                                 //message.author.send("You are DMing me now!");
@@ -216,11 +216,11 @@ client.once('ready', () => {
                             // Else if reply to sender from inbox channel, forward message to DM.
                             } else {
                                 reply.setColor(config.admin_color);
-                                reply.setFooter(config.mail_footer + ". Sent from " + message.guild.name);
+                                reply.setFooter(config.mail_footer + " Sent from " + message.guild.name);
                                 client.users.fetch(author).then(user=>user.send(
                                     'Your anonymous message has been responded to.',
                                     {embed: reply}
-                                ).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id)));
+                                ).then(resp=>DB.insertReply(interaction_id, resp.id, sender.id, guild_id)));
                             }
                         });
 
@@ -232,17 +232,8 @@ client.once('ready', () => {
         }
 
         if(message.content.length > 5 && message.content.substring(0, 5) === '!trix') {
-                    // if(!guild_settings.set) {
-                    //     console.log("go set");
-                    //     //updateSettings(message, 'message');
-                    //     return;
-                    // }
-    
-            // if(!guild_settings.set) {
-            //     console.log("go set");
-            //     updateSettings(message, 'message');
-            //     return;
-            // }
+            const guild_id = message.guild.id;
+            var guild_settings = await fetchSettings(guild_id);    
 
             const command = message.content.split(/\s+/)[1];
             if(command == 'help'){
@@ -264,18 +255,27 @@ client.once('ready', () => {
                 var param = [];
                 try{
                     param = message.content.match(/"([^"]*)"/g)[0];
-                    param = param.substring(1, param.length - 1);
+                    var channel_name = param.substring(1, param.length - 1);
                 } catch(err) {
                     console.log("Error in parsing " + message.content + ": ");
                     console.log(err);
                     message.channel.send("Unable to execute command. Double-check your format and try again?");
                     return;
-                }                //console.log(param);
-                //console.log(client.channels.cache);
-                let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
-                //console.log(channel.id);
-                //guild_settings.inbox_channel = channel;
-                DB.updateInboxChannel(guild_id, channel.id);
+                }
+    
+                // Get channel by name
+                let channel = message.guild.channels.cache.find(chnl => chnl.name.toLowerCase() === channel_name);
+
+                if(typeof channel.id === undefined) {
+                    message.channel.send("This channel does not exist. Check your spelling and try again?");
+                } else if(!message.guild.me.permissionsIn(channel).has(['SEND_MESSAGES', 'VIEW_CHANNEL', 'EMBED_LINKS'])){
+                    // No permissions to view, post, and embed in the channel specified
+                    message.channel.send("I do not have permission to post in that channel. Please update my permissions and try again.");
+                } else {
+                    // If permissions are sufficient and channel exists, update settings
+                    message.channel.send("Inbox channel has now been changed to #" + channel_name);
+                    DB.updateInboxChannel(guild_id, channel.id);
+                }
             } else if (command == 'commands') {
     
                 var param = [];
@@ -288,16 +288,15 @@ client.once('ready', () => {
                     message.channel.send("Unable to execute command. Double-check your format and try again?");
                     return
                 }
-                //console.log(param);
-                //console.log(client.channels.cache);
                 let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
-                //console.log(channel.id);
-                //guild_settings.commands_channel = channel;
-                //console.log(guild_id);
+                if(typeof channel.id === undefined) {
+                    message.channel.send("This channel does not exist. Check your spelling and try again?");
+                } 
+                
                 DB.updateCommandsChannel(guild_id, channel.id);
-
             } else if(command == 'settings'){
                 var body = '';
+
                 console.log(guild_settings);
                 for(var key in guild_settings) {
                     if(key !== 'set') {
@@ -349,6 +348,13 @@ client.once('ready', () => {
 //     console.log(channel_id);
 //     client.channel.cache.get(channel_id).send('Thank you for installing Trix! To start setting configuration, please type `!trix inbox [channel_name]` .');  
 // }
+
+function checkChannelPermissions(channel, purpose) {
+    var permissions = []
+    if(purpose === 'commands') {
+        permissions = ['']
+    }
+}
 function createMail(args, sender, id) {
     var user_id = '';
     var pfp ='';
