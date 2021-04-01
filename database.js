@@ -26,7 +26,7 @@ async function checkTableExists(tbl_name) {
     return true;
 
 }
-async function insertInteractions(interaction, msg_id) {
+async function insertInteraction(interaction, msg_id) {
     const sender = interaction.member
     const id = interaction.id
     const guild_id = interaction.guild_id;
@@ -75,22 +75,27 @@ function postedMessage(interaction_id, msg_id) {
     });
 }
 
-function insertReplies(interaction, msg, author) {
+async function insertReply(interaction_id, msg_id, author_id, guild_id) {
     var insert_vals = {
-        interaction: interaction,
-        message: msg,
-        author_id: author
+        interaction_id: interaction_id,
+        message_id: msg_id,
+        author_id: author_id
     }
 
-    var query = connection.query('INSERT INTO replies SET ?', insert_vals, function(error, results, fields) {
+    const tbl_name = guild_id + '_replies';
+    const exists = await checkTableExists(tbl_name);
+    if(!exists) {
+        createRepliesTable(guild_id);
+    }
+    var query = connection.query('INSERT INTO ' + tbl_name + ' SET ?', insert_vals, function(error, results, fields) {
         if(error) throw error;
     });
 }
-async function getAuthor(int_id) {
-    const query = 'SELECT user FROM messages WHERE id = "' + int_id + '"';
+async function getAuthorByInteraction(interaction_id, guild_id) {
+    const query = 'SELECT author_id FROM ' + guild_id + '_interactions WHERE id = "' + interaction_id + '"';
     let result = await queryDB(query);
     //console.log(result[0].interaction);
-    return result[0].user;
+    return result[0].author_id;
 
 }
 function queryDB(query) {
@@ -116,7 +121,7 @@ function queryDB(query) {
 // .guilds(guild_id)
 async function getInteractionByMsg(msg_id, guild_id) {
     //console.log(msg_id);
-    var query = 'SELECT interaction FROM '+ guild_id +'_interactions WHERE message = "' + msg_id + '"';
+    var query = 'SELECT id FROM '+ guild_id +'_interactions WHERE message_id = "' + msg_id + '"';
     let result = await queryDB(query);
     //console.log(result[0]);
     //console.log(typeof result[0]);
@@ -124,17 +129,17 @@ async function getInteractionByMsg(msg_id, guild_id) {
         console.log('Attempted to reply to message not logged. Ignoring.');
         return 0;
     }
-    return result[0].interaction;
+    return result[0].id;
 }
 
-async function getMode(interaction) {
-    var query = 'SELECT mode FROM messages WHERE id = "' + interaction + '"';
+async function getMode(interaction_id, guild_id) {
+    var query = 'SELECT mode FROM '+guid_id+'_interactions WHERE id = "' + interaction_id + '"';
     let result = await queryDB(query);
     return result[0].mode;
 }
 
-async function getAuthorByMsg(msg_id) {
-    var query = 'SELECT author_id FROM replies WHERE message = "' + msg_id + '"';
+async function getAuthorByMsg(msg_id, guild_id) {
+    var query = 'SELECT author_id FROM '+guild_id+'_replies WHERE message_id = "' + msg_id + '"';
     let result = await queryDB(query);
     return result[0].author_id;
 }
@@ -163,7 +168,7 @@ function createRepliesTable(guild_id) {
         'message_id varchar(32) not null,'+
         //'content longtext not null,'+
         'author_id varchar(32) not null,' +
-        'date datetime not null default now(),'+
+        'date datetime not null default now()'+
     ')';
 
     var query = connection.query(table, function(error, results, fields) {
@@ -250,10 +255,10 @@ function insertInteraction(interaction, guild) {
 
 
 module.exports = connection;
-module.exports.insertInteractions = insertInteractions;
-module.exports.insertReplies = insertReplies;
+module.exports.insertInteraction = insertInteraction;
+module.exports.insertReply = insertReply;
 module.exports.getInteractionByMsg = getInteractionByMsg;
-module.exports.getAuthor = getAuthor;
+module.exports.getAuthorByInteraction = getAuthorByInteraction;
 module.exports.getMode = getMode;
 module.exports.createInteractionsTable = createInteractionsTable;
 module.exports.createRepliesTable = createRepliesTable;
