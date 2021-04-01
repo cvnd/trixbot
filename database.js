@@ -27,6 +27,7 @@ async function checkTableExists(tbl_name) {
 
 }
 async function insertInteraction(interaction, msg_id) {
+    console.log("Inserting into guild interaction table...");
     const sender = interaction.member
     const id = interaction.id
     const guild_id = interaction.guild_id;
@@ -126,20 +127,26 @@ async function getInteractionByMsg(msg_id, guild_id) {
     //console.log(result[0]);
     //console.log(typeof result[0]);
     if(typeof result[0] == 'undefined') {
-        console.log('Attempted to reply to message not logged. Ignoring.');
-        return 0;
+        query = 'SELECT interaction_id FROM '+ guild_id +'_replies WHERE message_id = "' + msg_id + '"';
+        result = await queryDB(query);
+
+        if(typeof result[0] == 'undefined') {
+            console.log('Attempted to reply to message not logged. Ignoring.');
+            return 0;    
+        }
+        return result[0].interaction_id;
     }
     return result[0].id;
 }
 
 async function getMode(interaction_id, guild_id) {
-    var query = 'SELECT mode FROM '+guid_id+'_interactions WHERE id = "' + interaction_id + '"';
+    var query = 'SELECT mode FROM '+ guild_id +'_interactions WHERE id = "' + interaction_id + '"';
     let result = await queryDB(query);
     return result[0].mode;
 }
 
 async function getAuthorByMsg(msg_id, guild_id) {
-    var query = 'SELECT author_id FROM '+guild_id+'_replies WHERE message_id = "' + msg_id + '"';
+    var query = 'SELECT author_id FROM '+ guild_id +'_replies WHERE message_id = "' + msg_id + '"';
     let result = await queryDB(query);
     return result[0].author_id;
 }
@@ -242,7 +249,7 @@ async function getGuildSettings(guild_id) {
     return result[0];  
 }
 
-function insertInteraction(interaction, guild) {
+function insertGlobalInteraction(interaction, guild) {
     var insert_vals = {
         guild_id: guild,
         interaction_id: interaction
@@ -256,6 +263,7 @@ function insertInteraction(interaction, guild) {
 
 module.exports = connection;
 module.exports.insertInteraction = insertInteraction;
+module.exports.insertGlobalInteraction = insertGlobalInteraction;
 module.exports.insertReply = insertReply;
 module.exports.getInteractionByMsg = getInteractionByMsg;
 module.exports.getAuthorByInteraction = getAuthorByInteraction;

@@ -84,7 +84,7 @@ client.once('ready', () => {
             //     //DB.postedMessage(interaction.id, msg.id);
             // });
             client.guilds.cache.get(guild_id).channels.cache.get(guild_settings.inbox_channel).send({embed: mail}).then(resp=>DB.insertInteraction(interaction, resp.id));    
-
+            DB.insertGlobalInteraction(interaction.id, guild_id);
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
                     type: 3,
@@ -161,17 +161,25 @@ client.once('ready', () => {
 
                     var guild_id = '';
                     if(message.channel.type === 'dm') {
-                        //let original_interaction = await 
-                        console.log("triggering message is a DM")
+                        //let original_interaction = await
+                        var footer = replied_message.embeds[0].footer.text; 
+                        footer = footer.match(/(Sent from )(.+)$/g)[0];
+                        console.log(footer);
+                        const guild_name = footer.substring(10, footer.length);
+                        var guild = client.guilds.cache.find(guild => guild.name === guild_name);
+                        //console.log(guild);
+                        console.log("triggering message is a DM");
+                        guild_id = guild.id;
                     } else {
                         guild_id = message.guild.id;
-                        var guild_settings = await fetchSettings(guild_id);    
+                            
                     }
-
+                    var guild_settings = await fetchSettings(guild_id);
                     checkSettings(guild_settings);    
                     //var guild_settings = await fetchSettings(guild_id);
 
                     // Get original interaction from table
+                    console.log("replied_message.id: " + replied_message.id);
                     DB.getInteractionByMsg(replied_message.id, guild_id).then(interaction_id=>{
 
                         // If no interaction exists, return
@@ -206,8 +214,9 @@ client.once('ready', () => {
                                     }
 
                                     // Get author of message being replied to and send to inbox channel
-                                    DB.getAuthorByMsg(replied_message).then(replied_author_id=>{
-                                        message.guild.channels.cache.get(guild_setting.inbox_channel).send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReply(interaction_id, resp.id, sender.id));    
+                                    DB.getAuthorByMsg(replied_message, guild_id).then(replied_author_id=>{
+                                        //console.log(message);
+                                        guild.channels.cache.get(guild_settings.inbox_channel).send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReply(interaction_id, resp.id, sender.id, guild_id));    
                                     });
                                 });
                                 //message.author.send("You are DMing me now!");
@@ -292,7 +301,7 @@ client.once('ready', () => {
                 if(typeof channel.id === undefined) {
                     message.channel.send("This channel does not exist. Check your spelling and try again?");
                 } 
-                
+            
                 DB.updateCommandsChannel(guild_id, channel.id);
             } else if(command == 'settings'){
                 var body = '';
@@ -305,8 +314,6 @@ client.once('ready', () => {
                         if (typeof guild_settings[key] === undefined || guild_settings[key] === ''){
                             body += "Not set"
                         } else if(key == 'inbox_channel' || key == 'commands_channel') {
-                            //console.log(message.guild.channels.cache);
-                            //console.log(guild_settings[key]);
                             let channel = message.guild.channels.cache.get(guild_settings[key]);
                             body += channel.name;
                         } else {
