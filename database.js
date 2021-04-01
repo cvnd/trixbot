@@ -16,12 +16,20 @@ connection.connect(function(err) {
     console.log('Connected to the MySQL server.');
 });
 
-function checkTable() {
+async function checkTableExists(tbl_name) {
+    let stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + auth.database + "' AND table_name = '" + tbl_name + "';"
+    var exists = await queryDB(stmt);
+    if(typeof exists[0] == 'undefined') {
+        console.log('Table does not exist.');
+        return false;
+    }
+    return true;
 
 }
-function insertMessages(interaction, msg_id) {
+async function insertInteractions(interaction, msg_id) {
     const sender = interaction.member
     const id = interaction.id
+    const guild_id = interaction.guild_id;
     var mode ='';
 
     const data = interaction.data;
@@ -37,11 +45,18 @@ function insertMessages(interaction, msg_id) {
     var insert_vals = {
         id: id,
         content: data.options[0].value,
-        user: user,
+        author_id: user,
         mode: mode,
         message_id: msg_id
     }
-    var query = connection.query('INSERT INTO messages SET ?', insert_vals, function (error, results, fields) {
+
+    const table = guild_id + '_interactions';
+    var exists = await checkTableExists(table);
+    console.log(exists);
+    if(!exists) {
+        createInteractionsTable(guild_id);
+    }
+    var query = connection.query('INSERT INTO ' + guild_id + '_interactions SET ?', insert_vals, function (error, results, fields) {
         if (error) throw error;
     // Neat!
     });
@@ -72,19 +87,6 @@ function insertReplies(interaction, msg, author) {
     });
 }
 async function getAuthor(int_id) {
-    // var query = connection.query('SELECT user FROM messages WHERE id = "' + int_id + '"', function(error, result, fields) {
-    //     if(error) throw error;
-    //     Object.keys(result).forEach(function(key) {
-    //         var userid = result[key].interaction;
-    //         client.users.fetch(userid).then(user=>user.send('message'));
-    //         // const msg = '```Mail Code: '+ code +'```';
-    //         // feed.send(msg);
-    //         // interaction.push(row.interaction);
-    //         //console.log(row.interaction)
-    //         //interaction = row.interaction;
-    //       });
-
-    //});
     const query = 'SELECT user FROM messages WHERE id = "' + int_id + '"';
     let result = await queryDB(query);
     //console.log(result[0].interaction);
@@ -112,9 +114,9 @@ function queryDB(query) {
 
 }
 // .guilds(guild_id)
-async function getInteraction(msg_id) {
+async function getInteractionByMsg(msg_id, guild_id) {
     //console.log(msg_id);
-    var query = 'SELECT interaction FROM replies WHERE message = "' + msg_id + '"';
+    var query = 'SELECT interaction FROM '+ guild_id +'_interactions WHERE message = "' + msg_id + '"';
     let result = await queryDB(query);
     //console.log(result[0]);
     //console.log(typeof result[0]);
@@ -138,16 +140,16 @@ async function getAuthorByMsg(msg_id) {
 }
 
 
-function createMessageTable(guild_id) {
+function createInteractionsTable(guild_id) {
     var table =
-    'CREATE TABLE ' + guild_id + '_interactions (' +
-        'id varchar(32) not null primary key,'+ 
-        'message_id varchar(32) not null,'+
-        'content longtext not null,'+
-        'author_id varchar(32) not null,' +
-        'date datetime not null default now(),'+
-        'mode not null default "anon"'+
-    ')';
+    "CREATE TABLE " + guild_id + "_interactions (" +
+        "id VARCHAR(32) NOT NULL PRIMARY KEY, "+ 
+        "message_id VARCHAR(32) NOT NULL, "+
+        "content LONGTEXT NOT NULL, "+
+        "author_id VARCHAR(32) NOT NULL, "+
+        "date DATETIME NOT NULL DEFAULT NOW(), "+
+        "mode VARCHAR(6) NOT NULL DEFAULT 'anon'"+
+    ")";
 
     var query = connection.query(table, function(error, results, fields) {
         if(error) throw error;
@@ -170,6 +172,7 @@ function createRepliesTable(guild_id) {
 }
 
 function createGuildSettings(guild_id) {
+    console.log("Creating guild setting...");
     var stmt = 'INSERT INTO guild_settings (guild_id) VALUES (' + guild_id + ')';
 
     var query = connection.query(stmt, function(error, results, fields) {
@@ -207,7 +210,7 @@ function updateCommandsChannel(guild_id, channel_id) {
     })
 }
 
-async function checkGuild(guild_id) {
+async function checkGuildExists(guild_id) {
     //console.log(msg_id);
     var query = 'SELECT guild_id FROM guild_settings WHERE guild_id = "' + guild_id + '"';
     let result = await queryDB(query);
@@ -234,15 +237,27 @@ async function getGuildSettings(guild_id) {
     return result[0];  
 }
 
+function insertInteraction(interaction, guild) {
+    var insert_vals = {
+        guild_id: guild,
+        interaction_id: interaction
+    }
+
+    var query = connection.query('INSERT INTO guilds_interactions SET ?', insert_vals, function(error, results, fields) {
+        if(error) throw error;
+    });
+}
+
+
 module.exports = connection;
-module.exports.insertMessages = insertMessages;
+module.exports.insertInteractions = insertInteractions;
 module.exports.insertReplies = insertReplies;
-module.exports.getInteraction = getInteraction;
+module.exports.getInteractionByMsg = getInteractionByMsg;
 module.exports.getAuthor = getAuthor;
 module.exports.getMode = getMode;
-module.exports.createMessageTable = createMessageTable;
+module.exports.createInteractionsTable = createInteractionsTable;
 module.exports.createRepliesTable = createRepliesTable;
-module.exports.checkGuild = checkGuild;
+module.exports.checkGuildExists = checkGuildExists;
 module.exports.getAuthorByMsg = getAuthorByMsg;
 module.exports.getGuildSettings = getGuildSettings;
 module.exports.createGuildSettings = createGuildSettings;
