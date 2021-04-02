@@ -171,7 +171,7 @@ function createInteractionsTable(guild_id) {
 function createRepliesTable(guild_id) {
     var table =
     'CREATE TABLE ' + guild_id + '_replies (' +
-        'interaction_id varchar(32) not null primary key,'+ 
+        'interaction_id varchar(32) not null,'+ 
         'message_id varchar(32) not null,'+
         //'content longtext not null,'+
         'author_id varchar(32) not null,' +
