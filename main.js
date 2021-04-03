@@ -3,16 +3,17 @@ const Discord = require('./node_modules/discord.js');
 const auth = require('./auth.json');
 const DB = require('./database.js');
 const commands = require('./commands.json');
-var settings = require('./config.json');
-const { WebhookClient } = require('discord.js');
-var guild_id = '';
+var config = require('./config.json');
+const { WebhookClient, MessageAttachment } = require('discord.js');
+
 // create a new Discord client
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
+
 // when the client is ready, run this code
 // this event will only trigger one time after logging in
 client.once('ready', () => {
-    console.log(client.guilds);
-	console.log('Ready!');
+
+    console.log('Ready!');
 
     // Register all commands
     commands.forEach(element => {
@@ -21,23 +22,69 @@ client.once('ready', () => {
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
 
-        if(guild_id == '') {
-            guild_id = interaction.guild_id;
-            //console.log(interaction);
-        }
 
-        //console.log(interaction);
-        //console.log(interaction.data);
         const command = interaction.data.name.toLowerCase();
-        const args = interaction.data.options;
-        const sender = interaction.member;
+        
         if (command === 'mail'){ 
+            const guild_id = interaction.guild_id;
+            const args = interaction.data.options;
+            const sender = interaction.member;
+    
+            //let exists = await DB.checkGuild(guild_id);
+            var guild_settings = await fetchSettings(guild_id);
 
+
+            checkSettings(guild_settings);
+    
+            if(!guild_settings.set) {
+                // Do things
+                //updateSettings(interaction, 'interaction');
+                //console.log("NOT SET");
+
+                //failedInteraction("This bot is not fully configured for your server. Use `!trix help` to view how to get started.")
+                client.api.interactions(interaction.id, interaction.token).callback.post({
+                    data: {
+                        type: 3,
+                        data: {
+                            content: "This bot is not configured for your server. Use `!trix help` to view how to get started.",
+                            flags: 64
+                            }        
+                    }        
+                })
+                return;
+            }
+
+            //console.log(interaction);
+
+            if(guild_settings.commands_channel != interaction.channel_id) {
+                //failedInteraction("Commands are disabled for this channel. Please visit #" + guild_settings.commands_channel.name + " instead")
+                client.api.interactions(interaction.id, interaction.token).callback.post({
+                    data: {
+                        type: 3,
+                        data: {
+                            content: "Commands are disabled for this channel. Please visit #" + guild_settings.commands_channel.name + " instead",
+                            flags: 64
+                            }        
+                    }        
+                })
+                return;
+            }
             // Create embed
             const mail = createMail(args, sender, interaction.id);
 
             // Insert info into DB
             
+
+        
+            //console.log(client.users.fetch(sender.user.id));
+            // guild_settings.inbox_channel.send(mail).then(msg=>{
+            //     DB.insertMessages(interaction, msg.id);
+            //     DB.insertReply(interaction.id, msg.id, sender.user.id);
+            //     //msg.react('✉️');
+            //     //DB.postedMessage(interaction.id, msg.id);
+            // });
+            client.guilds.cache.get(guild_id).channels.cache.get(guild_settings.inbox_channel).send({embed: mail}).then(resp=>DB.insertInteraction(interaction, resp.id));    
+            DB.insertGlobalInteraction(interaction.id, guild_id);
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
                     type: 3,
@@ -47,14 +94,8 @@ client.once('ready', () => {
                         }        
                 }        
             })
+
         
-            //console.log(client.users.fetch(sender.user.id));
-            client.channels.cache.get('822859340812910592').send(mail).then(msg=>{
-                DB.insertMessages(interaction, msg.id);
-                DB.insertReplies(interaction.id, msg.id, sender.user.id);
-                //msg.react('✉️');
-                //DB.postedMessage(interaction.id, msg.id);
-            });
             if(args.length == 2 && args[1].value == 'public') {
                 mail.setFooter('This message is public. Your username will be visible to the recipients.');
             } else {
@@ -95,35 +136,51 @@ client.once('ready', () => {
         }
     });
     
-    client.on('message', function(message){
-        if(guild_id == '') {
-            guild_id = message.guild_id;
-        }
-        // console.log("MESSAGE");
-        // console.log(message);
-        // console.log("EO MESSAGE");
+    client.on('message', async function(message){
+        //console.log(message);
+        // If message is from user and if it's in a guild channel
+
+     
         const sender = message.author;
-        //console.log(sender);
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
         var userhandle = sender.username + '#' +  sender.discriminator;
-
+        //console.log(message.channel);
         // If message is a direct reply
-        if(message.reference !== null) {
-            
+    
+        //console.log(message.author);
+        let user = client.users.fetch(message.author.id);
+        //console.log(user);
+        if(message.reference !== null && message.author.bot !== true) {
+
             // Get ID of message it's replying to (replied_message)
             message.channel.messages.fetch(message.reference.messageID)
-            .then(replied_message => {
-                // console.log("REPLIED MESSAGE");
-                //console.log('MessageReference: ' + message.reference.messageID);
-                //console.log('replied_message: ' + replied_message.id);
-                // console.log("EO REPLIED MESSAGE");
-                // console.log(message.reference.messageID);
+            .then(async(replied_message) => {
 
                 // If message is direct reply to bot post.
                 if(replied_message.author.id === '789932059224702976') {
 
+                    var guild_id = '';
+                    if(message.channel.type === 'dm') {
+                        //let original_interaction = await
+                        var footer = replied_message.embeds[0].footer.text; 
+                        footer = footer.match(/(Sent from )(.+)$/g)[0];
+                        console.log(footer);
+                        const guild_name = footer.substring(10, footer.length);
+                        var guild = client.guilds.cache.find(guild => guild.name === guild_name);
+                        //console.log(guild);
+                        console.log("triggering message is a DM");
+                        guild_id = guild.id;
+                    } else {
+                        guild_id = message.guild.id;
+                            
+                    }
+                    var guild_settings = await fetchSettings(guild_id);
+                    checkSettings(guild_settings);    
+                    //var guild_settings = await fetchSettings(guild_id);
+
                     // Get original interaction from table
-                    DB.getInteraction(replied_message.id).then(interaction_id=>{
+                    console.log("replied_message.id: " + replied_message.id);
+                    DB.getInteractionByMsg(replied_message.id, guild_id).then(interaction_id=>{
 
                         // If no interaction exists, return
                         if(interaction_id === 0) {
@@ -137,40 +194,42 @@ client.once('ready', () => {
                             .setTitle('RE: Submission #' + truncateInteractionID(interaction_id))
                             .setDescription(message.content)
                             .setTimestamp()
-                            .setFooter(settings.mail_footer);
+                            .setFooter(config.mail_footer);
 
 
                         // Get author of original interaction
-                        DB.getAuthor(interaction_id).then(author=>{
+                        DB.getAuthorByInteraction(interaction_id, guild_id).then(author=>{
 
                             // If DM to bot, put response in inbox channel
                             if (replied_message.channel.type == "dm") {
 
-                                // console.log(message.author);
-                                reply.setColor(settings.member_color);
+                                reply.setColor(config.member_color);
 
-                                DB.getMode(interaction_id).then(mode=>{
+                                DB.getMode(interaction_id, guild_id).then(mode=>{
 
                                     // If initial interaction was set to anonymous, change author to hide user.
                                     if(mode == 'anon') {
                                         userhandle = 'User#' + truncateAuthorID(sender.id);
-                                        reply.setAuthor(userhandle, settings.anon_avatar);
+                                        reply.setAuthor(userhandle, config.anon_avatar);
                                     }
 
-                                    // Get author of message being replied to
-                                    DB.getAuthorByMsg(replied_message).then(replied_author_id=>{
-                                        client.channels.cache.get('822859340812910592')
-                                        .send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id));    
+                                    // Get author of message being replied to and send to inbox channel
+                                    DB.getAuthorByMsg(replied_message, guild_id).then(replied_author_id=>{
+                                        //console.log(message);
+                                        guild.channels.cache.get(guild_settings.inbox_channel).send("<@" + replied_author_id + ">", {embed: reply}).then(resp=>DB.insertReply(interaction_id, resp.id, sender.id, guild_id));    
                                     });
                                 });
                                 //message.author.send("You are DMing me now!");
                                 // return;
+
+                            // Else if reply to sender from inbox channel, forward message to DM.
                             } else {
-                                reply.setColor(settings.admin_color);
+                                reply.setColor(config.admin_color);
+                                reply.setFooter(config.mail_footer + " Sent from " + message.guild.name);
                                 client.users.fetch(author).then(user=>user.send(
                                     'Your anonymous message has been responded to.',
                                     {embed: reply}
-                                ).then(resp=>DB.insertReplies(interaction_id, resp.id, sender.id)));
+                                ).then(resp=>DB.insertReply(interaction_id, resp.id, sender.id, guild_id)));
                             }
                         });
 
@@ -180,11 +239,129 @@ client.once('ready', () => {
             .catch(console.error);
           
         }
+
+        if(message.content.length > 5 && message.content.substring(0, 5) === '!trix') {
+            const guild_id = message.guild.id;
+            var guild_settings = await fetchSettings(guild_id);    
+
+            const command = message.content.split(/\s+/)[1];
+            if(command == 'help'){
+                const help = new Discord.MessageEmbed()
+                .setColor('#efefef')
+                .setDescription('All command parameters should be entered within double quotes.')
+                .addFields({
+                    name:'Command List',
+                    value:  '`!trix inbox "channel-name"` to set inbox channel \n'+
+                            '`!trix commands "channel-name"` to set commands channel \n' +
+                            '`!trix settings` to show defined settings'
+                })
+                .setTimestamp()
+                .setFooter('Thank you for installing Trix! If you find any bugs, please send it to cloe.nd@2073 along with any screenshots.'); 
+                message.channel.send({embed: help});
+                //console.log("pewpew");
+
+            } else if (command == 'inbox') {
+                var param = [];
+                try{
+                    param = message.content.match(/"([^"]*)"/g)[0];
+                    var channel_name = param.substring(1, param.length - 1);
+                } catch(err) {
+                    console.log("Error in parsing " + message.content + ": ");
+                    console.log(err);
+                    message.channel.send("Unable to execute command. Double-check your format and try again?");
+                    return;
+                }
     
+                // Get channel by name
+                let channel = message.guild.channels.cache.find(chnl => chnl.name.toLowerCase() === channel_name);
+
+                if(typeof channel.id === undefined) {
+                    message.channel.send("This channel does not exist. Check your spelling and try again?");
+                } else if(!message.guild.me.permissionsIn(channel).has(['SEND_MESSAGES', 'VIEW_CHANNEL', 'EMBED_LINKS'])){
+                    // No permissions to view, post, and embed in the channel specified
+                    message.channel.send("I do not have permission to post in that channel. Please update my permissions and try again.");
+                } else {
+                    // If permissions are sufficient and channel exists, update settings
+                    message.channel.send("Inbox channel has now been changed to #" + channel_name);
+                    DB.updateInboxChannel(guild_id, channel.id);
+                }
+            } else if (command == 'commands') {
+    
+                var param = [];
+                try{
+                    param = message.content.match(/"([^"]*)"/g)[0];
+                    param = param.substring(1, param.length - 1);
+                } catch(err) {
+                    console.log("Error in parsing " + message.content + ": ");
+                    console.log(err);
+                    message.channel.send("Unable to execute command. Double-check your format and try again?");
+                    return
+                }
+                let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
+                if(typeof channel.id === undefined) {
+                    message.channel.send("This channel does not exist. Check your spelling and try again?");
+                } 
+            
+                DB.updateCommandsChannel(guild_id, channel.id);
+            } else if(command == 'settings'){
+                var body = '';
+
+                console.log(guild_settings);
+                for(var key in guild_settings) {
+                    if(key !== 'set') {
+                        var title = key[0].toUpperCase() + key.substring(1);
+                        body += '\n' + title.replace("_", " ") + ': '
+                        if (typeof guild_settings[key] === undefined || guild_settings[key] === ''){
+                            body += "Not set"
+                        } else if(key == 'inbox_channel' || key == 'commands_channel') {
+                            let channel = message.guild.channels.cache.get(guild_settings[key]);
+                            body += channel.name;
+                        } else {
+                            body +=  guild_settings[key];
+                        }
+                    }
+
+                }
+
+                const embed = new Discord.MessageEmbed()
+                            .setTitle('Current settings')
+                            .setDescription(body)
+                            .setColor('#efefef')
+                            .setFooter('To see all commands, use `!trix help`');
+                
+                message.channel.send(embed);
+            }else {
+                message.channel.send("Sorry, this command is not recognized. Please use `!trix help` to view usable commands.");
+            }
+
+            //console.log(guild_settings);
+            checkSettings(guild_settings);
+            // if(isSet(guild_settings)) {
+            //     guild_settings.set = true;
+            // }
+        } 
     });
     
 });
 
+// function updateSettings(event, type) {
+//     console.log(event);
+//     var channel_id = '';
+//     if(type == 'interaction') {
+//         channel_id = event.channel_id;
+//     } else if (type == 'message') {
+//         channel_id = event.channel.id;
+//     }
+//     console.log(channel_id);
+//     client.channel.cache.get(channel_id).send('Thank you for installing Trix! To start setting configuration, please type `!trix inbox [channel_name]` .');  
+// }
+
+function checkChannelPermissions(channel, purpose) {
+    var permissions = []
+    if(purpose === 'commands') {
+        permissions = ['']
+    }
+}
 function createMail(args, sender, id) {
     var user_id = '';
     var pfp ='';
@@ -197,11 +374,11 @@ function createMail(args, sender, id) {
     } else {
         //var len = sender.user.id.length;
         user_id += 'User#' + truncateAuthorID(sender.user.id);
-        pfp = settings.anon_avatar;
+        pfp = config.anon_avatar;
     }
 
     const msg = new Discord.MessageEmbed()
-                .setColor(settings.member_color)
+                .setColor(config.member_color)
                 .setTitle("Submission #" + truncateInteractionID(id))
                 .setAuthor(user_id, pfp)
                 .setDescription( args[0].value + '\n')
@@ -209,7 +386,7 @@ function createMail(args, sender, id) {
                 //     { name: tag, value: args[1].value + '\n' },
                 // )
                 .setTimestamp()
-                .setFooter(settings.mail_footer);
+                .setFooter(config.mail_footer);
 
     return msg;
 }
@@ -220,6 +397,91 @@ function truncateInteractionID(id) {
 
 function truncateAuthorID(id) {
     return id.substring(id.length - 4, id.length)
+}
+
+async function fetchSettings(guild_id) {
+    // var guild_settings = {};
+    // Check if guild exists in table
+    var exists = await DB.checkGuildExists(guild_id);
+    //console.log(exists);
+
+    if(exists) {
+
+        // If it does exist, fetch settings
+        var settings = await DB.getGuildSettings(guild_id);
+        // .then(settings=>{
+        //     //console.log(settings);
+        //     if(isSet(settings).length === 0) {
+        //         guild_settings.patreon_tier = settings.patreon_tier;
+        //         guild_settings.commands_channel = client.channels.cache.get(settings.commands_channel);
+        //         guild_settings.inbox_channel = client.channels.cache.get(settings.inbox_channel);
+        //         guild_settings.default_mode = settings.default_mode;
+        //         guild_settings.set = true;
+        //     }
+            
+        //     //console.log(guild_settings);
+        // });
+    } else {
+        DB.createGuildSettings(guild_id);
+        DB.createRepliesTable(guild_id);
+        DB.createInteractionssTable(guild_id);
+        var settings = await DB.getGuildSettings(guild_id);
+        // .then(settings=>{
+        //     //console.log(settings);
+        //     if(isSet(settings).length === 0) {
+        //         guild_settings.patreon_tier = settings.patreon_tier;
+        //         guild_settings.commands_channel = client.channels.cache.get(settings.commands_channel);
+        //         guild_settings.inbox_channel = client.channels.cache.get(settings.inbox_channel);
+        //         guild_settings.default_mode = settings.default_mode;
+        //         guild_settings.set = true;
+        //     }
+            
+        //     //console.log(guild_settings);
+        // });
+    }
+    //console.log(settings.inbox_channel);
+    return settings;
+}
+
+// function getGuildSettings(guild_id, settings) {
+    
+// }
+
+function isSet(vals) {
+    var set = true;
+    for(var key in vals) {
+        //console.log(vals[key]);
+        if(typeof vals[key] == 'undefined' || vals[key] == '') {
+            set = false;
+        }
+    }
+    return set;
+}
+
+function checkSettings(vals) {
+    var set = true
+    for(var key in vals) {
+        console.log(vals[key]);
+        if(typeof vals[key] === undefined || vals[key] === '') {
+            //console.log(vals[key]);
+            set = false;
+        }
+    }
+    vals.set = set;
+    console.log(vals);
+}
+
+function failedInteraction(msg) {
+    client.api.interactions(interaction.id, interaction.token).callback.post({
+        data: {
+            type: 3,
+            data: {
+                content: msg,
+                flags: 64
+                }        
+        }        
+    })
+    return;
 }
 
 function registerCommand(json) {
