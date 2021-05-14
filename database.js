@@ -226,6 +226,9 @@ async function checkGuildExists(guild_id) {
     //console.log(msg_id);
     var query = 'SELECT guild_id FROM guild_settings WHERE guild_id = "' + guild_id + '"';
     let result = await queryDB(query);
+    //console.log(result[0]);
+    // return (typeof result[0] == 'undefined');
+    // console.log(typeof result[0]);
     if(typeof result[0] == 'undefined') {
         console.log('Guild not stored in database.');
         return false;
@@ -237,6 +240,8 @@ async function checkGuildExists(guild_id) {
 async function getGuildSettings(guild_id) {
     var query = 'SELECT patreon_tier, inbox_channel, commands_channel, default_mode FROM guild_settings WHERE guild_id = "' + guild_id + '"';
     let result = await queryDB(query);
+    //console.log(result[0]);
+    //console.log(typeof result[0]);
     if(typeof result[0] == 'undefined') {
         // console.log('Guild not stored in database.');
         return 0;
