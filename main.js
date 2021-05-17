@@ -51,7 +51,7 @@ client.once('ready', () => {
                     data: {
                         type: 3,
                         data: {
-                            content: "Commands are disabled for this channel. Please visit #" + guild_settings.commands_channel.name + " instead",
+                            content: "Commands are disabled for this channel. Please use !trix help to get the proper channel, or contact your server admins.",
                             flags: 64
                             }        
                     }        
