@@ -339,7 +339,7 @@ async function fetchSettings(guild_id) {
     } else {
         DB.createGuildSettings(guild_id);
         DB.createRepliesTable(guild_id);
-        DB.createInteractionssTable(guild_id);
+        DB.createInteractionsTable(guild_id);
         var settings = await DB.getGuildSettings(guild_id);
     }
     return settings;
