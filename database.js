@@ -1,10 +1,10 @@
 let mysql = require('mysql');
-const auth = require('./auth.json');
+const config = require('./config.json');
 var connection = mysql.createConnection({
-    host: auth.host,
-    user: auth.user,
-    password: auth.password,
-    database: auth.database
+    host: config.host,
+    user: config.user,
+    password: config.password,
+    database: config.database
 });
     
 connection.connect(function(err) {
@@ -17,7 +17,7 @@ connection.connect(function(err) {
 });
 
 async function checkTableExists(tbl_name) {
-    let stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + auth.database + "' AND table_name = '" + tbl_name + "';"
+    let stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema = '" + config.database + "' AND table_name = '" + tbl_name + "';"
     var exists = await queryDB(stmt);
     if(typeof exists[0] == 'undefined') {
         console.log('Table does not exist.');
@@ -40,7 +40,6 @@ async function insertInteraction(interaction, msg_id) {
     } else {
         mode = 'anon';
     }
-    // const user_id = sender.user.username + '#' + sender.user.discriminator;
 
     const user = sender.user.id;
     var insert_vals = {
@@ -59,9 +58,7 @@ async function insertInteraction(interaction, msg_id) {
     }
     var query = connection.query('INSERT INTO ' + guild_id + '_interactions SET ?', insert_vals, function (error, results, fields) {
         if (error) throw error;
-    // Neat!
     });
-    //console.log(query.sql); // INSERT INTO posts SET `id` = 1, `title` = 'Hello MySQL'
 
 }
 
@@ -95,7 +92,6 @@ async function insertReply(interaction_id, msg_id, author_id, guild_id) {
 async function getAuthorByInteraction(interaction_id, guild_id) {
     const query = 'SELECT author_id FROM ' + guild_id + '_interactions WHERE id = "' + interaction_id + '"';
     let result = await queryDB(query);
-    //console.log(result[0].interaction);
     return result[0].author_id;
 
 }
@@ -103,11 +99,9 @@ function queryDB(query) {
     return new Promise(data => {
         connection.query(query, function (error, result) { // change db->connection for your code
             if (error) {
-                //console.log(error);
                 throw error;
             }
             try {
-                //console.log(result);
                 data(result);
 
             } catch (error) {
@@ -119,13 +113,12 @@ function queryDB(query) {
     });
 
 }
-// .guilds(guild_id)
+
 async function getInteractionByMsg(msg_id, guild_id) {
-    //console.log(msg_id);
+
     var query = 'SELECT id FROM '+ guild_id +'_interactions WHERE message_id = "' + msg_id + '"';
     let result = await queryDB(query);
-    //console.log(result[0]);
-    //console.log(typeof result[0]);
+
     if(typeof result[0] == 'undefined') {
         query = 'SELECT interaction_id FROM '+ guild_id +'_replies WHERE message_id = "' + msg_id + '"';
         result = await queryDB(query);
@@ -242,17 +235,6 @@ async function getGuildSettings(guild_id) {
         return 0;
     }
     return result[0];  
-}
-
-function insertGlobalInteraction(interaction, guild) {
-    var insert_vals = {
-        guild_id: guild,
-        interaction_id: interaction
-    }
-
-    var query = connection.query('INSERT INTO guilds_interactions SET ?', insert_vals, function(error, results, fields) {
-        if(error) throw error;
-    });
 }
 
 

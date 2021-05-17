@@ -1,9 +1,9 @@
 // require the discord.js module
 const Discord = require('./node_modules/discord.js');
-const auth = require('./auth.json');
+const config = require('./config.json');
 const DB = require('./database.js');
 const commands = require('./commands.json');
-var config = require('./config.json');
+var settings = require('./settings.json');
 const { WebhookClient, MessageAttachment } = require('discord.js');
 
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
@@ -18,7 +18,6 @@ client.once('ready', () => {
     });
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
-
 
         const command = interaction.data.name.toLowerCase();
         
@@ -35,7 +34,7 @@ client.once('ready', () => {
             if(!guild_settings.set) {
                 client.api.interactions(interaction.id, interaction.token).callback.post({
                     data: {
-                        type: 3,
+                        type: 4,
                         data: {
                             content: "This bot is not configured for your server. Use `!trix help` to view how to get started.",
                             flags: 64
@@ -49,7 +48,7 @@ client.once('ready', () => {
             if(guild_settings.commands_channel != interaction.channel_id) {
                 client.api.interactions(interaction.id, interaction.token).callback.post({
                     data: {
-                        type: 3,
+                        type: 4,
                         data: {
                             content: "Commands are disabled for this channel. Please use !trix help to get the proper channel, or contact your server admins.",
                             flags: 64
@@ -62,17 +61,15 @@ client.once('ready', () => {
             const mail = createMail(args, sender, interaction.id);
 
             client.guilds.cache.get(guild_id).channels.cache.get(guild_settings.inbox_channel).send({embed: mail}).then(resp=>DB.insertInteraction(interaction, resp.id));    
-            //DB.insertGlobalInteraction(interaction.id, guild_id);
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
-                    type: 3,
+                    type: 4,
                     data: {
                         content: "Your message has been sent successfully.",
                         flags: 64
                         }        
                 }        
-            })
-
+            });
         
             if(args.length == 2 && args[1].value == 'public') {
                 mail.setFooter('This message is public. Your username will be visible to the recipients.');
@@ -91,7 +88,7 @@ client.once('ready', () => {
         const sender = message.author;
         const pfp = 'https://cdn.discordapp.com/avatars/'+ sender.id +'/'+ sender.avatar +'.png';
         var userhandle = sender.username + '#' +  sender.discriminator;
-        //console.log(message.channel);
+
         // If message is a direct reply
         let user = client.users.fetch(message.author.id);
         if(message.reference !== null && message.author.bot !== true) {
@@ -138,7 +135,7 @@ client.once('ready', () => {
                             .setTitle('RE: Submission #' + truncateInteractionID(interaction_id))
                             .setDescription(message.content)
                             .setTimestamp()
-                            .setFooter(config.mail_footer);
+                            .setFooter(settings.mail_footer);
 
 
                         // Get author of original interaction
@@ -147,14 +144,14 @@ client.once('ready', () => {
                             // If DM to bot, put response in inbox channel
                             if (replied_message.channel.type == "dm") {
 
-                                reply.setColor(config.member_color);
+                                reply.setColor(settings.member_color);
 
                                 DB.getMode(interaction_id, guild_id).then(mode=>{
 
                                     // If initial interaction was set to anonymous, change author to hide user.
                                     if(mode == 'anon') {
                                         userhandle = 'User#' + truncateAuthorID(sender.id);
-                                        reply.setAuthor(userhandle, config.anon_avatar);
+                                        reply.setAuthor(userhandle, settings.anon_avatar);
                                     }
 
                                     // Get author of message being replied to and send to inbox channel
@@ -168,8 +165,8 @@ client.once('ready', () => {
 
                             // Else if reply to sender from inbox channel, forward message to DM.
                             } else {
-                                reply.setColor(config.admin_color);
-                                reply.setFooter(config.mail_footer + " Sent from " + message.guild.name);
+                                reply.setColor(settings.admin_color);
+                                reply.setFooter(settings.mail_footer + " Sent from " + message.guild.name);
                                 client.users.fetch(author).then(user=>user.send(
                                     'Your anonymous message has been responded to.',
                                     {embed: reply}
@@ -285,13 +282,6 @@ client.once('ready', () => {
 });
 
 
-function checkChannelPermissions(channel, purpose) {
-    var permissions = []
-    if(purpose === 'commands') {
-        permissions = ['']
-    }
-}
-
 function createMail(args, sender, id) {
     var user_id = '';
     var pfp ='';
@@ -304,11 +294,11 @@ function createMail(args, sender, id) {
     } else {
         //var len = sender.user.id.length;
         user_id += 'User#' + truncateAuthorID(sender.user.id);
-        pfp = config.anon_avatar;
+        pfp = settings.anon_avatar;
     }
 
     return new Discord.MessageEmbed()
-                .setColor(config.member_color)
+                .setColor(settings.member_color)
                 .setTitle("Submission #" + truncateInteractionID(id))
                 .setAuthor(user_id, pfp)
                 .setDescription( args[0].value + '\n')
@@ -316,7 +306,7 @@ function createMail(args, sender, id) {
                 //     { name: tag, value: args[1].value + '\n' },
                 // )
                 .setTimestamp()
-                .setFooter(config.mail_footer);
+                .setFooter(settings.mail_footer);
 
 }
 
@@ -370,21 +360,15 @@ function checkSettings(vals) {
     console.log(vals);
 }
 
-function failedInteraction(msg) {
-    client.api.interactions(interaction.id, interaction.token).callback.post({
-        data: {
-            type: 3,
-            data: {
-                content: msg,
-                flags: 64
-                }        
-        }        
-    })
-    return;
-}
-
 function registerCommand(json) {
+
+    // Register local guild command for dev, otherwise do global for prod
+    if(config.mode === "dev") {
+        let guildID = '826085359694905414';
+        client.api.applications(client.user.id).guilds(guildID).commands.post({data: json});
+        return;
+    }
     client.api.applications(client.user.id).commands.post({data: json});
 }
 // Log our bot in using the token from https://discord.com/developers/applications
-client.login(auth.token);
+client.login(config.token);
