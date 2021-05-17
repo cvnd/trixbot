@@ -255,7 +255,7 @@ client.once('ready', () => {
                     if(key !== 'set') {
                         var title = key[0].toUpperCase() + key.substring(1);
                         body += '\n' + title.replace("_", " ") + ': '
-                        if (typeof guild_settings[key] === undefined || guild_settings[key] === ''){
+                        if (typeof guild_settings[key] === undefined || guild_settings[key] === '' || guild_settings[key] === null){
                             body += "Not set"
                         } else if(key == 'inbox_channel' || key == 'commands_channel') {
                             let channel = message.guild.channels.cache.get(guild_settings[key]);
