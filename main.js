@@ -62,7 +62,7 @@ client.once('ready', () => {
             const mail = createMail(args, sender, interaction.id);
 
             client.guilds.cache.get(guild_id).channels.cache.get(guild_settings.inbox_channel).send({embed: mail}).then(resp=>DB.insertInteraction(interaction, resp.id));    
-            DB.insertGlobalInteraction(interaction.id, guild_id);
+            //DB.insertGlobalInteraction(interaction.id, guild_id);
             client.api.interactions(interaction.id, interaction.token).callback.post({
                 data: {
                     type: 3,
