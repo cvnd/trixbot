@@ -61,18 +61,18 @@ client.once('ready', () => {
             }
 
 
-            if(guild_settings.commands_channel != interaction.channel_id) {
-                client.api.interactions(interaction.id, interaction.token).callback.post({
-                    data: {
-                        type: 4,
-                        data: {
-                            content: "Commands are disabled for this channel. Please use !trix help to get the proper channel, or contact your server admins.",
-                            flags: 64
-                            }        
-                    }        
-                })
-                return;
-            }
+            // if(guild_settings.commands_channel != interaction.channel_id) {
+            //     client.api.interactions(interaction.id, interaction.token).callback.post({
+            //         data: {
+            //             type: 4,
+            //             data: {
+            //                 content: "Commands are disabled for this channel. Please use !trix help to get the proper channel, or contact your server admins.",
+            //                 flags: 64
+            //                 }        
+            //         }        
+            //     })
+            //     return;
+            // }
             // Create embed
             const mail = createMail(args, sender, interaction.id);
 
