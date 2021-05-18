@@ -18,11 +18,27 @@ client.once('ready', () => {
     });
 
     client.ws.on('INTERACTION_CREATE', async interaction => {
-
+        console.log(interaction);
         const command = interaction.data.name.toLowerCase();
         
         if (command === 'mail'){ 
             const guild_id = interaction.guild_id;
+
+            // Command was executed in DMs.
+            if(guild_id === undefined || guild_id === null) {
+                client.api.interactions(interaction.id, interaction.token).callback.post({
+                    data: {
+                        type: 4,
+                        data: {
+                            content: "Cannot execute this command here. Please be in a server with Trix to send a message.",
+                            flags: 64
+                            }        
+                    }        
+                })
+                return;
+
+            }
+
             const args = interaction.data.options;
             const sender = interaction.member;
     
@@ -109,7 +125,7 @@ client.once('ready', () => {
                         const guild_name = footer.substring(10, footer.length);
                         var guild = client.guilds.cache.find(guild => guild.name === guild_name);
                         //console.log(guild);
-                        console.log("triggering message is a DM");
+                       // console.log("triggering message is a DM");
                         guild_id = guild.id;
                     } else {
                         guild_id = message.guild.id;
@@ -193,7 +209,7 @@ client.once('ready', () => {
                 .addFields({
                     name:'Command List',
                     value:  '`!trix inbox "channel-name"` to set inbox channel \n'+
-                            '`!trix commands "channel-name"` to set commands channel \n' +
+                            // '`!trix commands "channel-name"` to set commands channel \n' +
                             '`!trix settings` to show defined settings'
                 })
                 .setTimestamp()
@@ -226,35 +242,35 @@ client.once('ready', () => {
                     message.channel.send("Inbox channel has now been changed to #" + channel_name);
                     DB.updateInboxChannel(guild_id, channel.id);
                 }
-            } else if (command == 'commands') {
+            // } else if (command == 'commands') {
     
-                var param = [];
-                try{
-                    param = message.content.match(/"([^"]*)"/g)[0];
-                    param = param.substring(1, param.length - 1);
-                } catch(err) {
-                    console.log("Error in parsing " + message.content + ": ");
-                    console.log(err);
-                    message.channel.send("Unable to execute command. Double-check your format and try again?");
-                    return
-                }
-                let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
-                if(typeof channel.id === undefined) {
-                    message.channel.send("This channel does not exist. Check your spelling and try again?");
-                } 
+            //     var param = [];
+            //     try{
+            //         param = message.content.match(/"([^"]*)"/g)[0];
+            //         param = param.substring(1, param.length - 1);
+            //     } catch(err) {
+            //         console.log("Error in parsing " + message.content + ": ");
+            //         console.log(err);
+            //         message.channel.send("Unable to execute command. Double-check your format and try again?");
+            //         return
+            //     }
+            //     let channel = message.guild.channels.cache.find(channel => channel.name.toLowerCase() === param);
+            //     if(typeof channel.id === undefined) {
+            //         message.channel.send("This channel does not exist. Check your spelling and try again?");
+            //     } 
             
-                DB.updateCommandsChannel(guild_id, channel.id);
+            //     DB.updateCommandsChannel(guild_id, channel.id);
             } else if(command == 'settings'){
                 var body = '';
 
                 console.log(guild_settings);
                 for(var key in guild_settings) {
-                    if(key !== 'set') {
+                    if(key !== 'set' && key !== 'commands_channel') {
                         var title = key[0].toUpperCase() + key.substring(1);
                         body += '\n' + title.replace("_", " ") + ': '
                         if (typeof guild_settings[key] === undefined || guild_settings[key] === '' || guild_settings[key] === null){
                             body += "Not set"
-                        } else if(key == 'inbox_channel' || key == 'commands_channel') {
+                        } else if(key == 'inbox_channel'){
                             let channel = message.guild.channels.cache.get(guild_settings[key]);
                             body += channel.name;
                         } else {
@@ -268,7 +284,7 @@ client.once('ready', () => {
                             .setTitle('Current settings')
                             .setDescription(body)
                             .setColor('#efefef')
-                            .setFooter('To see all commands, use `!trix help`');
+                            .setFooter('To see all commands, use !trix help');
                 
                 message.channel.send(embed);
             }else {
@@ -335,17 +351,6 @@ async function fetchSettings(guild_id) {
     return settings;
 }
 
-
-function isSet(vals) {
-    var set = true;
-    for(var key in vals) {
-        //console.log(vals[key]);
-        if(typeof vals[key] == 'undefined' || vals[key] == '') {
-            set = false;
-        }
-    }
-    return set;
-}
 
 function checkSettings(vals) {
     var set = true

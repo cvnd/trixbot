@@ -231,7 +231,6 @@ async function getGuildSettings(guild_id) {
     var query = 'SELECT patreon_tier, inbox_channel, commands_channel, default_mode FROM guild_settings WHERE guild_id = "' + guild_id + '"';
     let result = await queryDB(query);
     if(typeof result[0] == 'undefined') {
-        // console.log('Guild not stored in database.');
         return 0;
     }
     return result[0];  
@@ -240,7 +239,6 @@ async function getGuildSettings(guild_id) {
 
 module.exports = connection;
 module.exports.insertInteraction = insertInteraction;
-module.exports.insertGlobalInteraction = insertGlobalInteraction;
 module.exports.insertReply = insertReply;
 module.exports.getInteractionByMsg = getInteractionByMsg;
 module.exports.getAuthorByInteraction = getAuthorByInteraction;
