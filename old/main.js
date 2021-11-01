@@ -4,9 +4,13 @@ const config = require('./config.json');
 const DB = require('./database.js');
 const commands = require('./commands.json');
 var settings = require('./settings.json');
-const { WebhookClient, MessageAttachment } = require('discord.js');
+//const { WebhookClient, MessageAttachment } = require('discord.js');
 
-const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
+// const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
+const client = new Discord.Client();
+client
+.on("debug", console.log)
+.on("warn", console.log);
 
 client.once('ready', () => {
 

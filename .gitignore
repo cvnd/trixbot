@@ -105,4 +105,5 @@ dist
 package-lock.json
 package.json
 auth.json
-config.json
+old/config.json
+src/config.json
